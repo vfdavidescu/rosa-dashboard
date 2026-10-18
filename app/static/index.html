@@ -161,7 +161,7 @@
 let state = null, period = "week", map = null, marker = null;
 
 /* ---------- status ---------- */
-const LOW_FUEL_PCT = 10, MID_FUEL_PCT = 25;
+const LOW_FUEL_PCT = 10;
 const PART_NAMES = { driver: "Driver door", passenger: "Passenger door", rear_left: "Rear left door",
                      rear_right: "Rear right door", boot: "Boot", bonnet: "Bonnet" };
 
@@ -236,10 +236,7 @@ function renderHero(v) {
   $("hs-odo").innerHTML = bigDual(d.odometer, "distance", v.units, "v");
   $("hs-range").innerHTML = bigDual(d.total_range ?? d.fuel_range, "distance", v.units, "v");
 
-  const pct = d.fuel_level;
-  $("hs-fuel").textContent = pct == null ? "–" : `${pct}%`;
-  $("hs-fuel").classList.remove("lvl-bad", "lvl-warn", "lvl-ok");
-  if (pct != null) $("hs-fuel").classList.add(pct < LOW_FUEL_PCT ? "lvl-bad" : pct < MID_FUEL_PCT ? "lvl-warn" : "lvl-ok");
+  $("hs-fuel").textContent = d.fuel_level == null ? "–" : `${d.fuel_level}%`;
 }
 
 function renderWarnings(d) {
