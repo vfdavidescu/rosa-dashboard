@@ -150,6 +150,17 @@
   .num { text-align: right; }
   .score { display: inline-block; min-width: 34px; text-align: center; padding: 2px 6px; border-radius: 6px; background: var(--accent-soft); }
   .empty { color: var(--muted); font-size: 14px; }
+
+  /* trips page */
+  .map { border-radius: 12px; overflow: hidden; background: var(--line); z-index: 0; }
+  .map-all { height: 420px; }
+  .map-trip { height: 280px; }
+  tr.trip { cursor: pointer; }
+  tr.trip:hover td, tr.trip:focus-visible td { background: color-mix(in srgb, var(--line) 45%, transparent); }
+  tr.trip.open td { background: var(--accent-soft); }
+  tr.trip-map-row td { padding: 0 0 12px; border-top: 0; white-space: normal; }
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
+
   footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 28px; }
 
   /* ---------- phones ---------- */
@@ -195,6 +206,11 @@
     td.t-dist { grid-area: dist; } td.t-time { grid-area: time; } td.t-ev { grid-area: ev; } td.t-cons { grid-area: cons; }
     td .alt { display: block; margin: 1px 0 0; font-size: 11px; white-space: nowrap; }
     td.empty { grid-column: 1 / -1; }
+    tr.trip-map-row { display: block; padding: 0 0 12px; border-top: 0; }
+    tr.trip.open td { background: transparent; }
+    tr.trip.open { background: var(--accent-soft); border-radius: 10px; }
+    .map-all { height: 300px; }
+    .map-trip { height: 240px; }
   }
   @media (max-width: 360px) {
     .big { font-size: 30px; }

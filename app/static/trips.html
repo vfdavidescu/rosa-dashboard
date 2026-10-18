@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ee" id="themecolor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusbar">
+<meta name="apple-mobile-web-app-title" content="Rosa">
+<title>Trips · Rosa Dash</title>
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("rosa-theme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Rosa</h1>
+        <div class="sub" id="summary">Trips</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="theme" class="icon-btn" type="button" aria-label="Switch light/dark mode" title="Switch light/dark mode">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Pages">
+    <a href="./">Dashboard</a>
+    <a href="trips" aria-current="page">Trips</a>
+    <a href="service"><span class="long">Service &amp; Maintenance</span><span class="short">Service</span></a>
+  </nav>
+
+  <div class="banner err" id="error"></div>
+  <div class="banner info" id="info"></div>
+
+  <section class="grid">
+    <article class="card span-12">
+      <h2>Every road driven</h2>
+      <div class="map map-all" id="all-map"></div>
+      <div class="sub" id="routes-note" style="margin-top:8px"></div>
+    </article>
+
+    <article class="card span-12">
+      <h2>All trips</h2>
+      <table>
+        <thead><tr>
+          <th>When</th><th class="num">Distance</th><th class="num">Time</th>
+          <th class="num">EV</th><th class="num">Consumption</th><th class="num">Score</th>
+        </tr></thead>
+        <tbody id="trips"></tbody>
+      </table>
+      <div class="pager" id="pager" hidden>
+        <button type="button" id="newer">← Newer</button>
+        <span class="sub" id="page-label"></span>
+        <button type="button" id="older">Older →</button>
+      </div>
+    </article>
+  </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="static/common.js"></script>
+<script>
+const PER_PAGE = 20;
+const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+let data = null, page = 1, allMap = null, tripMap = null, routesLoaded = false;
+
+const accent = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+
+function newMap(el) {
+  const map = L.map(el, { zoomControl: false, attributionControl: true, preferCanvas: true, tap: false });
+  L.tileLayer(TILES, { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+  return map;
+}
+
+/* ---------- every road ---------- */
+async function loadRoutes() {
+  if (routesLoaded || !window.L) return;
+  try {
+    const { routes } = await api("api/trips/routes");
+    routesLoaded = true;
+    if (!routes.length) { $("all-map").hidden = true; return; }
+    allMap = allMap || newMap("all-map");
+    const color = accent();
+    const lines = routes.map((r) => L.polyline(r, { color, weight: 3, opacity: 0.35, interactive: false }).addTo(allMap));
+    allMap.fitBounds(L.featureGroup(lines).getBounds(), { padding: [12, 12] });
+  } catch (err) {
+    $("routes-note").textContent = `Couldn't load routes: ${err.message}`;
+  }
+}
+
+/* ---------- one trip ---------- */
+function closeTrip() {
+  if (tripMap) { tripMap.remove(); tripMap = null; }
+  document.querySelector("tr.trip-map-row")?.remove();
+  document.querySelectorAll("tr.trip.open").forEach((r) => { r.classList.remove("open"); r.setAttribute("aria-expanded", "false"); });
+}
+
+async function toggleTrip(row) {
+  const wasOpen = row.classList.contains("open");
+  closeTrip();
+  if (wasOpen) return;
+  row.classList.add("open");
+  row.setAttribute("aria-expanded", "true");
+  const detail = document.createElement("tr");
+  detail.className = "trip-map-row";
+  detail.innerHTML = `<td colspan="6"><div class="map map-trip"></div></td>`;
+  row.after(detail);
+  const el = detail.querySelector(".map-trip");
+  if (row.dataset.route !== "1" || !window.L) {
+    el.outerHTML = `<p class="empty" style="margin:0">${window.L ? "Route not downloaded yet." : "Map unavailable."}</p>`;
+    return;
+  }
+  try {
+    const { points } = await api(`api/trips/${encodeURIComponent(row.dataset.id)}/route`);
+    if (!detail.isConnected) return; // closed while loading
+    tripMap = newMap(el);
+    const line = L.polyline(points, { color: accent(), weight: 4 }).addTo(tripMap);
+    L.circleMarker(points[0], { radius: 6, color: "#fff", weight: 2, fillColor: "#15803d", fillOpacity: 1 }).addTo(tripMap).bindTooltip("Start");
+    L.circleMarker(points.at(-1), { radius: 6, color: "#fff", weight: 2, fillColor: accent(), fillOpacity: 1 }).addTo(tripMap).bindTooltip("End");
+    tripMap.fitBounds(line.getBounds(), { padding: [16, 16] });
+  } catch (err) {
+    el.outerHTML = `<p class="empty" style="margin:0">${esc(err.message)}</p>`;
+  }
+}
+
+/* ---------- list ---------- */
+function render() {
+  const u = data.units;
+  closeTrip();
+  const rows = data.trips.map((t) => {
+    const ev = t.distance && t.ev_distance != null ? Math.round(t.ev_distance / t.distance * 100) : null;
+    return `<tr class="trip" tabindex="0" aria-expanded="false" data-id="${esc(t.id)}" data-route="${t.has_route ? 1 : 0}">
+      <td class="t-when">${fmt.when(t.start)}</td>
+      <td class="num t-dist" data-label="Distance">${inlineDual(t.distance, "distance", u, 1)}</td>
+      <td class="num t-time" data-label="Time">${fmt.dur(t.duration_min)}</td>
+      <td class="num t-ev" data-label="EV">${ev == null ? "–" : ev + "%"}</td>
+      <td class="num t-cons" data-label="Economy">${inlineDual(t.avg_consumption, "consumption", u)}</td>
+      <td class="num t-score"><span class="score">${t.score ? fmt.n(t.score) : "–"}</span></td>
+    </tr>`;
+  });
+  $("trips").innerHTML = rows.join("") || `<tr><td colspan="6" class="empty">No trips stored yet. They appear after the next refresh.</td></tr>`;
+  $("trips").querySelectorAll("tr.trip").forEach((r) => {
+    r.addEventListener("click", () => toggleTrip(r));
+    r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleTrip(r); } });
+  });
+
+  $("pager").hidden = data.pages <= 1;
+  $("page-label").textContent = `Page ${data.page} of ${data.pages}`;
+  $("newer").disabled = data.page <= 1;
+  $("older").disabled = data.page >= data.pages;
+  $("summary").textContent = `${fmt.n(data.total)} trips`;
+  $("routes-note").textContent = data.routes_pending
+    ? `Downloading routes from Toyota: ${fmt.n(data.routes_pending)} to go. They fill in over the next half hour or so.`
+    : "";
+  $("info").textContent = data.mock ? "Mock mode: sample trips, not your car." : "";
+  $("info").classList.toggle("show", !!data.mock);
+}
+
+async function load(p = page) {
+  try {
+    data = await api(`api/trips?page=${p}&per_page=${PER_PAGE}`);
+    page = data.page;
+    $("error").classList.remove("show");
+    render();
+  } catch (err) {
+    $("error").textContent = `Couldn't load trips: ${err.message}`;
+    $("error").classList.add("show");
+  }
+}
+
+$("newer").addEventListener("click", () => load(page - 1));
+$("older").addEventListener("click", () => load(page + 1));
+
+load();
+loadRoutes();
+</script>
+</body>
+</html>

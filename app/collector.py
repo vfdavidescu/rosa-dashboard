@@ -18,6 +18,7 @@ import math
 import time
 import logging
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -25,8 +26,12 @@ from typing import Any, Callable
 from app import remote
 from app.images import CarImage
 from app.maintenance import MaintenanceStore
+from app.trips import TripStore
 
 log = logging.getLogger("rosa.collector")
+
+TRIP_HISTORY_DAYS = 365  # Toyota keeps about a year
+ROUTES_PER_BATCH = 20
 
 
 class CommandCooldown(Exception):
@@ -63,6 +68,12 @@ def _round(value: Any, ndigits: int = 1) -> float | None:
     return round(value, ndigits) if isinstance(value, (int, float)) else None
 
 
+def _uk_mpg(value: Any, use_metric: bool) -> float | None:
+    """pytoyoda 6.0.0 says UK mpg but divides by the US-gallon factor (235.215)."""
+    value = _round(value)
+    return value if use_metric or not value else round(value * 282.481 / 235.215, 1)
+
+
 def _door(door: Any) -> dict | None:
     if door is None:
         return None
@@ -75,21 +86,21 @@ def _window(window: Any) -> dict | None:
     return {"closed": _get(lambda: window.closed)}
 
 
-def _trip(trip: Any) -> dict:
+def _trip(trip: Any, use_metric: bool) -> dict:
     return {
         "start": _iso(_get(lambda: trip.start_time)),
         "end": _iso(_get(lambda: trip.end_time)),
         "duration_min": _minutes(_get(lambda: trip.duration)),
         "distance": _round(_get(lambda: trip.distance)),
         "ev_distance": _round(_get(lambda: trip.ev_distance)),
-        "avg_consumption": _round(_get(lambda: trip.average_fuel_consumed)),
+        "avg_consumption": _uk_mpg(_get(lambda: trip.average_fuel_consumed), use_metric),
         "score": _get(lambda: trip.score),
         "from": _get(lambda: trip.locations.start.model_dump()),
         "to": _get(lambda: trip.locations.end.model_dump()),
     }
 
 
-def _summary(summary: Any) -> dict | None:
+def _summary(summary: Any, use_metric: bool) -> dict | None:
     if summary is None:
         return None
     return {
@@ -99,7 +110,7 @@ def _summary(summary: Any) -> dict | None:
         "ev_distance": _round(_get(lambda: summary.ev_distance)),
         "duration_min": _minutes(_get(lambda: summary.duration)),
         "avg_speed": _round(_get(lambda: summary.average_speed)),
-        "avg_consumption": _round(_get(lambda: summary.average_fuel_consumed)),
+        "avg_consumption": _uk_mpg(_get(lambda: summary.average_fuel_consumed), use_metric),
         "hybrid_score": _round(_get(lambda: summary.hybrid_score), 0),
     }
 
@@ -119,6 +130,23 @@ def _service_record(s: Any) -> dict:
         "notes": str(notes) if notes else None,
         "operations": str(ops) if ops else None,
         "source": "toyota",
+    }
+
+
+def _trip_record(t: Any) -> dict:
+    """One trip from Toyota's trip list, always in km and L/100km (see trips.py)."""
+    from pytoyoda.models.trips import Trip
+
+    trip = Trip(t, True)
+    return {
+        "id": _get(lambda: str(t.id)),
+        "start": _iso(_get(lambda: trip.start_time)),
+        "end": _iso(_get(lambda: trip.end_time)),
+        "duration_min": _minutes(_get(lambda: trip.duration)),
+        "distance_km": _round(_get(lambda: trip.distance), 2),
+        "ev_distance_km": _round(_get(lambda: trip.ev_distance), 2),
+        "avg_consumption": _round(_get(lambda: trip.average_fuel_consumed), 2) or None,
+        "score": _get(lambda: trip.score) or None,
     }
 
 
@@ -209,8 +237,8 @@ async def vehicle_snapshot(vehicle: Any, use_metric: bool) -> dict:
             "category": _get(lambda: service.service_category),
             "provider": _get(lambda: service.service_provider),
         },
-        "trips": [_trip(t) for t in trips or []],
-        "summaries": {"week": _summary(week), "month": _summary(month)},
+        "trips": [_trip(t, use_metric) for t in trips or []],
+        "summaries": {"week": _summary(week, use_metric), "month": _summary(month, use_metric)},
     }
 
 
@@ -230,6 +258,7 @@ class Collector:
         )
 
         self.maintenance = MaintenanceStore(self.data_file.parent / "maintenance.json")
+        self.trips = TripStore(self.data_file.parent)
 
         # Remote control is opt-in: it can unlock the car.
         self.remote_enabled = os.environ.get("REMOTE_CONTROL", "").lower() in ("1", "true", "yes")
@@ -280,9 +309,14 @@ class Collector:
             self.last_attempt = datetime.now(timezone.utc)
             try:
                 if self.mock:
-                    from app.mock import mock_snapshot
+                    from app.mock import mock_snapshot, mock_trips
 
                     vehicles = [mock_snapshot(self.use_metric)]
+                    if not self.trips.trips:
+                        trips = mock_trips()
+                        self.trips.merge([t for t, _ in trips])
+                        for t, route in trips:
+                            self.trips.save_route(t["id"], route)
                 else:
                     client = await self._client_instance()
                     cars = [c for c in await client.get_vehicles() if c is not None]
@@ -292,6 +326,8 @@ class Collector:
                     self._cars = cars
                     if vehicles:
                         await self.images.sync(vehicles[0].get("image_url"))
+                    if cars:
+                        await self._sync_trip_list(cars[0])
                 for v in vehicles:
                     records = v.pop("_service_records", None) or []
                     if records:
@@ -311,6 +347,62 @@ class Collector:
                 # Keep last good data on screen; just flag the error.
                 self.snapshot = {**self.snapshot, "error": f"{type(exc).__name__}: {exc}", "stale": True}
             return self.snapshot
+
+    # -- trip history -------------------------------------------------------------------
+    async def _sync_trip_list(self, car: Any) -> None:
+        """Store new trips, newest first, stopping at the first page we already have."""
+        today = date.today()
+        offset: int | None = 0
+        try:
+            while offset is not None:
+                resp = await car._api.get_trips(
+                    car.vin, today - timedelta(days=TRIP_HISTORY_DAYS), today,
+                    summary=False, limit=50, offset=offset,
+                )
+                await asyncio.sleep(1)
+                page = _get(lambda: resp.payload.trips) or []
+                records = [_trip_record(t) for t in page]
+                seen_all_new = not any(self.trips.known(r["id"]) for r in records if r["id"])
+                new = self.trips.merge(records)
+                if new:
+                    log.info("stored %d new trip(s)", new)
+                if not seen_all_new:
+                    break
+                offset = _get(lambda: resp.payload.metadata.pagination.next_offset)
+        except Exception as exc:  # noqa: BLE001 - trip history is optional
+            log.warning("trip list sync failed: %s", exc)
+
+    async def _fetch_routes(self, car: Any, limit: int) -> int:
+        """Fetch up to `limit` missing routes, one call at a time. Returns how many."""
+        done = 0
+        for tid in self.trips.missing_routes()[:limit]:
+            try:
+                resp = await car._api.get_trip_details(car.vin, tid)
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+                if "429" in msg or re.search(r"Failed\. 5\d\d", msg):
+                    log.warning("route fetch paused: %s", msg[:200])
+                    break  # Toyota is busy: try again next round
+                log.warning("no route for trip %s: %s", tid, msg[:200])
+                self.trips.save_route(tid, [])
+            else:
+                points = _get(lambda: resp.payload.route) or []
+                self.trips.save_route(tid, [[round(p.lat, 5), round(p.lon, 5)] for p in points
+                                            if p.lat is not None and p.lon is not None])
+            done += 1
+            await asyncio.sleep(1)
+        return done
+
+    async def backfill_routes(self) -> None:
+        """Fetch every missing route in small batches, sharing the refresh lock."""
+        while not self.mock and self._cars and self.trips.missing_routes():
+            async with self._lock:
+                await self._client_instance()
+                done = await self._fetch_routes(self._cars[0], ROUTES_PER_BATCH)
+            if not done:
+                return
+            log.info("fetched %d route(s), %d to go", done, len(self.trips.missing_routes()))
+            await asyncio.sleep(5)
 
     # -- remote commands ---------------------------------------------------------------
     def _read_last_command(self) -> dict | None:
@@ -401,6 +493,10 @@ class Collector:
     async def run_forever(self) -> None:
         while True:
             await self.refresh()
+            try:
+                await self.backfill_routes()
+            except Exception:  # noqa: BLE001
+                log.exception("route backfill failed")
             await asyncio.sleep(self.poll_minutes * 60)
 
     async def close(self) -> None:

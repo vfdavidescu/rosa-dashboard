@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +41,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Rosa Dash", lifespan=lifespan, docs_url=None, redoc_url=None)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 security = HTTPBasic(auto_error=False)
 
@@ -76,6 +78,12 @@ async def index() -> FileResponse:
 @app.get("/service", dependencies=[Depends(guard)])
 async def service_page() -> FileResponse:
     return FileResponse(STATIC / "service.html")
+
+
+@app.get("/trips", dependencies=[Depends(guard)])
+async def trips_page() -> FileResponse:
+    return FileResponse(STATIC / "trips.html")
+
 
 
 # -- live data ------------------------------------------------------------------------------
@@ -144,6 +152,31 @@ async def command(body: CommandRequest, request: Request, x_rosa_hold: str | Non
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return entry
+
+
+# -- trips ----------------------------------------------------------------------------------------
+@app.get("/api/trips", dependencies=[Depends(guard)])
+async def trips(page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=100)) -> dict:
+    metric = collector.use_metric
+    return {
+        **collector.trips.page(page, per_page, metric),
+        "units": {"distance": "km" if metric else "mi", "consumption": "L/100km" if metric else "mpg"},
+        "mock": collector.mock,
+    }
+
+
+@app.get("/api/trips/routes", dependencies=[Depends(guard)])
+async def trip_routes() -> dict:
+    # Simplifying every route takes a few seconds the first time; keep the server responsive.
+    return {"routes": await asyncio.to_thread(collector.trips.overview)}
+
+
+@app.get("/api/trips/{trip_id}/route", dependencies=[Depends(guard)])
+async def trip_route(trip_id: str) -> dict:
+    points = collector.trips.route(trip_id)
+    if points is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No route for this trip yet")
+    return {"points": points}
 
 
 # -- service & maintenance ----------------------------------------------------------------------

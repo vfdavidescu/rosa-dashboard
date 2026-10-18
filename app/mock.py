@@ -1,7 +1,37 @@
 """Fake data with the same shape as a real snapshot, for working on the UI
 without touching Toyota's API (MOCK=true)."""
 
+import random
 from datetime import datetime, timedelta, timezone
+
+
+def mock_trips(count: int = 45) -> list[tuple[dict, list[list[float]]]]:
+    """Stored-trip records (metric, as in trips.py) with wandering routes around Cambridge."""
+    rng = random.Random(7)
+    start = datetime.now(timezone.utc) - timedelta(hours=3)
+    out = []
+    for i in range(count):
+        lat, lon = 52.1951 + rng.uniform(-0.02, 0.02), 0.1313 + rng.uniform(-0.03, 0.03)
+        heading = rng.uniform(-1, 1), rng.uniform(-1, 1)
+        route = []
+        for _ in range(rng.randint(30, 90)):
+            heading = (heading[0] + rng.uniform(-0.4, 0.4), heading[1] + rng.uniform(-0.4, 0.4))
+            lat, lon = lat + heading[0] * 0.0008, lon + heading[1] * 0.0012
+            route.append([round(lat, 5), round(lon, 5)])
+        km = round(len(route) * 0.12, 2)
+        mins = round(km * 2.1, 1)
+        out.append(({
+            "id": f"mock-{i:03d}",
+            "start": (start - timedelta(minutes=mins)).isoformat(),
+            "end": start.isoformat(),
+            "duration_min": mins,
+            "distance_km": km,
+            "ev_distance_km": round(km * rng.uniform(0.3, 0.7), 2),
+            "avg_consumption": round(rng.uniform(3.8, 5.2), 2),
+            "score": rng.randint(65, 95),
+        }, route))
+        start -= timedelta(hours=rng.randint(5, 30))
+    return out
 
 
 def mock_snapshot(use_metric: bool) -> dict:

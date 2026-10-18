@@ -21,6 +21,9 @@ change their API at any time.
 - Where the car was last parked (OpenStreetMap)
 - This week's and this month's distance, consumption, hybrid score, EV share
 - The last 10 trips
+- **Trips** page (`/trips`): every trip, paged, saved locally so history
+  outlives Toyota's 12 months. A map of every road driven; click a trip for its
+  route. Routes download gradually (one API call each) after the first start.
 - Odometer, last service, warning lights
 - **Remote control** (opt-in): lock/unlock, boot, hazards, horn, climate,
   close windows, but only the ones your car reports it supports
@@ -117,6 +120,9 @@ In Safari, Share → Add to Home Screen. It opens full-screen like an app.
 | GET    | `/api/car-image` | The car picture (your photo if present, else Toyota's) |
 | POST   | `/api/refresh` | Fetch now (rate-limited by `REFRESH_COOLDOWN_SECONDS`) |
 | POST   | `/api/command` | Remote command (needs `REMOTE_CONTROL=true`, `X-Rosa: 1` and `X-Rosa-Hold: 3s`) |
+| GET    | `/api/trips?page=&per_page=` | Stored trips, newest first |
+| GET    | `/api/trips/routes` | Every stored route, simplified |
+| GET    | `/api/trips/{id}/route` | One trip's full route |
 | GET    | `/api/maintenance` | Service history, tyre rotations, interval |
 | POST   | `/api/maintenance/tyre-rotations` | Log a rotation |
 | DELETE | `/api/maintenance/tyre-rotations/{id}` | Remove one |
@@ -148,8 +154,10 @@ app/
   images.py       car picture: download/cache Toyota's, or use your own
   remote.py       which remote commands exist, capability checks, sending
   maintenance.py  maintenance.json: service history, tyre rotations
+  trips.py        trips.json + routes/: trip history and GPS routes
   static/
     index.html    dashboard page
+    trips.html    Trips page
     service.html  Service & Maintenance page
     app.css       shared styles
     common.js     shared JS: theme, formatting, units, API helper

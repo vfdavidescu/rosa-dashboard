@@ -38,7 +38,7 @@ There is no test suite, linter, or build step configured in this repo.
   `Collector.run_forever()` as a background task on startup, optional HTTP Basic
   auth (`guard`, only enforced when `DASHBOARD_PASSWORD` is set), the pages
   (`/`, `/service`, `/static/*`) and the JSON API: `/api/state`, `/api/car-image`,
-  `POST /api/refresh`, `POST /api/command`, and `/api/maintenance/*`.
+  `POST /api/refresh`, `POST /api/command`, `/api/trips*` and `/api/maintenance/*`.
   **Every POST/PUT/DELETE must depend on `same_site_write`** (requires an
   `X-Rosa: 1` header, a CSRF guard); keep that on any new write route.
 - `app/remote.py` — the fixed allow-list of remote commands (`COMMANDS`), each
@@ -53,6 +53,12 @@ There is no test suite, linter, or build step configured in this repo.
   (`maintenance.json`): Toyota service records merged by id (never deleted),
   user-logged tyre rotations, and the rotation interval. Distances are stored
   with their own unit and converted only for display.
+- `app/trips.py` — `TripStore`: every trip Toyota has reported (it keeps ~12
+  months), in `DATA_DIR/trips.json` (km, L/100km; converted per request) plus
+  full GPS routes in `DATA_DIR/routes/<id>.json`. Routes cost one API call each:
+  the collector stores new trips on each refresh, then `backfill_routes()` fetches
+  missing routes in batches of 20, holding the refresh lock so calls never overlap.
+  The all-roads map uses RDP-simplified routes, cached in memory.
 - `app/images.py` — the car picture: user photo in `CAR_IMAGE_DIR` wins,
   otherwise Toyota's render downloaded once into `DATA_DIR`.
 - `app/collector.py` — all Toyota I/O and the one `Collector` class that owns the
@@ -77,11 +83,11 @@ There is no test suite, linter, or build step configured in this repo.
   shape** as `vehicle_snapshot()`'s return value. When changing the real
   snapshot's shape, update this too, or `MOCK=true` mode will desync from reality.
 - `app/static/` — the frontend, vanilla JS, no build step: `index.html`
-  (dashboard + remote control, polls `/api/state`), `service.html` (Service &
-  Maintenance), `app.css` (shared styles, light/dark tokens) and `common.js`
+  (dashboard + remote control, polls `/api/state`), `trips.html` (all trips,
+  paged, with route maps), `service.html` (Service & Maintenance), `app.css` (shared styles, light/dark tokens) and `common.js`
   (theme toggle, formatting, unit conversion, `api()` helper that adds `X-Rosa`).
 - Other files written to `DATA_DIR` at runtime: `snapshot.json`,
-  `maintenance.json`, `command-log.json` (audit log of remote commands),
+  `maintenance.json`, `trips.json`, `routes/`, `command-log.json` (audit log of remote commands),
   `car-image.*`, and pytoyoda's HTTP cache in `.cache/` (the container's working
   directory is `/data` for that reason).
 
@@ -96,6 +102,10 @@ There is no test suite, linter, or build step configured in this repo.
   converts snapshot values server-side. The frontend then shows the *other* unit
   in grey via `both()`/`bigDual()`/`inlineDual()` in `common.js`, and converts
   maintenance distances (stored with their own unit) for display.
+- pytoyoda 6.0.0 converts to "UK mpg" with the US-gallon factor (235.215);
+  `collector._uk_mpg()` corrects it. Use 282.481 for UK mpg everywhere.
+- Never run pytoyoda in a one-off script without `loguru.logger.remove()` first:
+  its default DEBUG output prints the login password and tokens.
 - pytoyoda 6.0.0's built-in `trip_history` endpoint is broken (passes `route=`),
   so `vehicle.update(skip=["trip_history"])` is deliberate.
 - Logging is set up in `app/logsetup.py` (called at the top of `main.py`): console
