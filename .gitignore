@@ -5,3 +5,4 @@ __pycache__/
 logs/
 # your own car photo stays local
 images/car.*
+.DS_Store
