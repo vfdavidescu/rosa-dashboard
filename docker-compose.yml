@@ -1,0 +1,22 @@
+services:
+  rosa-dash:
+    build: .
+    container_name: rosa-dash
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CAR_IMAGE_DIR: /images
+      LOG_DIR: /logs
+    ports:
+      # LAN only by default. Don't port-forward this to the internet.
+      - "8080:8080"
+    volumes:
+      - rosa-data:/data
+      # Optional: put car.jpg / car.png / car.webp in ./images to replace
+      # Toyota's render with your own photo. Picked up without a rebuild.
+      - ./images:/images:ro
+      # Logs land in ./logs on this machine: rosa.log (app) and pytoyoda.log.
+      - ./logs:/logs
+
+volumes:
+  rosa-data:

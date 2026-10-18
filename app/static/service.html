@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ee" id="themecolor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusbar">
+<meta name="apple-mobile-web-app-title" content="Rosa">
+<title>Service &amp; Maintenance · Rosa Dash</title>
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("rosa-theme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1 id="name">Rosa</h1>
+        <div class="sub" id="odo-line">Service &amp; maintenance</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="theme" class="icon-btn" type="button" aria-label="Switch light/dark mode" title="Switch light/dark mode">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Pages">
+    <a href="./">Dashboard</a>
+    <a href="service" aria-current="page"><span class="long">Service &amp; Maintenance</span><span class="short">Service</span></a>
+  </nav>
+
+  <div class="banner err" id="error"></div>
+  <div class="banner info" id="info"></div>
+
+  <section class="grid">
+    <!-- tyre rotation: tracked here, not by Toyota -->
+    <article class="card span-7">
+      <h2>Tyre rotation</h2>
+      <div id="due"><p class="empty" style="margin:0">Loading…</p></div>
+      <div class="bar" id="bar" hidden><div></div></div>
+      <div class="bar-legend" id="bar-legend" hidden></div>
+
+      <details class="sec" style="margin-top:16px">
+        <summary>Interval: <span id="interval-text">–</span> · change</summary>
+        <form class="settings-row" id="settings-form">
+          Every
+          <input type="number" id="s-interval" min="1" step="1" required aria-label="Distance interval">
+          <select id="s-unit" aria-label="Unit"><option value="mi">mi</option><option value="km">km</option></select>
+          or
+          <input type="number" id="s-months" min="1" max="60" step="1" required aria-label="Months">
+          months, whichever comes first
+          <button type="submit">Save</button>
+          <span class="form-msg" id="settings-msg"></span>
+        </form>
+      </details>
+    </article>
+
+    <article class="card span-5">
+      <h2>Log a rotation</h2>
+      <form class="form" id="rot-form">
+        <label class="f wide-sm">Date
+          <input type="date" id="f-date" required>
+        </label>
+        <label class="f">Odometer
+          <input type="number" id="f-odo" min="0" step="1" inputmode="numeric" required>
+        </label>
+        <label class="f">Unit
+          <select id="f-unit"><option value="mi">mi</option><option value="km">km</option></select>
+        </label>
+        <label class="f wide">Notes <span style="font-weight:400">(optional)</span>
+          <input type="text" id="f-notes" maxlength="500" placeholder="e.g. front-to-back, at Kwik Fit">
+        </label>
+        <div class="btn-row wide">
+          <button type="submit" class="btn-primary">Log rotation</button>
+          <span class="form-msg" id="rot-msg"></span>
+        </div>
+      </form>
+    </article>
+
+    <article class="card span-12">
+      <h2>Rotation history</h2>
+      <ul class="list" id="rotations"></ul>
+    </article>
+
+    <!-- Toyota's service records, saved locally -->
+    <article class="card span-12">
+      <h2>Service history</h2>
+      <ul class="list" id="services"></ul>
+      <p class="note" style="margin:14px 0 0">From Toyota, saved on your server each time the dashboard refreshes.
+        Records stay here even if Toyota stops returning them.</p>
+    </article>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script src="static/common.js"></script>
+<script>
+let data = null;
+
+// Distance in the dashboard's unit (as {value, unit}) -> number in `to`.
+const inUnit = (value, unit, to) => convertDistance(Number(value), unit, to);
+
+function addMonths(iso, months) {
+  const d = new Date(iso + "T12:00:00");
+  const day = d.getDate();
+  d.setMonth(d.getMonth() + months);
+  if (d.getDate() < day) d.setDate(0); // e.g. 31 Jan + 1 month -> 28/29 Feb
+  return d.toISOString().slice(0, 10);
+}
+const daysBetween = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000);
+
+function renderDue() {
+  const u = data.units.distance;
+  const s = data.settings;
+  const interval = inUnit(s.rotation_interval, s.rotation_interval_unit, u);
+  $("interval-text").textContent = `every ${fmt.n(interval)} ${u} or ${s.rotation_months} months`;
+
+  const last = data.tyre_rotations[0];
+  const odo = data.odometer ? inUnit(data.odometer.value, data.odometer.unit, u) : null;
+  const bar = $("bar"), legend = $("bar-legend");
+  if (!last) {
+    $("due").innerHTML = `<p class="note" style="margin:0">No rotations logged yet. Add your most recent one and
+      this card will track when the next is due.</p>`;
+    bar.hidden = legend.hidden = true;
+    return;
+  }
+
+  const lastOdo = inUnit(last.odometer, last.unit, u);
+  const nextDate = addMonths(last.date, s.rotation_months);
+  const daysLeft = daysBetween(data.today, nextDate);
+  const since = odo != null ? Math.max(0, odo - lastOdo) : null;
+  const left = since != null ? interval - since : null;
+
+  const distFrac = since != null ? since / interval : 0;
+  const timeFrac = 1 - daysLeft / Math.max(1, daysBetween(last.date, nextDate));
+  const frac = Math.max(distFrac, timeFrac);           // whichever comes first
+  const over = (left != null && left <= 0) || daysLeft <= 0;
+  const soon = !over && frac >= 0.85;
+  const level = over ? "over" : soon ? "soon" : "ok";
+
+  let headline, sub;
+  if (over) {
+    headline = "Due now";
+    const bits = [];
+    if (left != null && left <= 0) bits.push(`${fmt.n(-left)} ${u} over`);
+    if (daysLeft <= 0) bits.push(`${-daysLeft} day${daysLeft === -1 ? "" : "s"} past the date`);
+    sub = bits.join(" · ");
+  } else {
+    headline = left != null ? `${fmt.n(left)} ${u}` : fmt.date(nextDate);
+    sub = left != null ? `to go, or by ${fmt.date(nextDate)}` : "next rotation date (odometer not available)";
+  }
+  const alt = left != null && !over ? `<span class="alt" style="display:block;font-size:13px;margin-top:4px">${fmt.n(convertDistance(left, u, u === "mi" ? "km" : "mi"))} ${u === "mi" ? "km" : "mi"}</span>` : "";
+  $("due").innerHTML = `
+    <div class="due"><div><div class="due-big">${headline}</div>${alt}</div>
+      <span class="chip ${level}">${over ? "Overdue" : soon ? "Due soon" : "On track"}</span></div>
+    <div class="sub" style="margin-top:6px">${esc(sub)}</div>`;
+
+  bar.hidden = legend.hidden = false;
+  bar.className = `bar ${level === "ok" ? "" : level}`;
+  bar.firstElementChild.style.width = `${Math.min(100, Math.round(frac * 100))}%`;
+  legend.innerHTML = `<span>Last: ${fmt.date(last.date)} at ${fmt.n(lastOdo)} ${u}</span>` +
+    `<span>${since != null ? `${fmt.n(since)} ${u} since` : ""}</span>`;
+}
+
+function renderRotations() {
+  const u = data.units.distance;
+  const units = { distance: u };
+  const items = data.tyre_rotations.map((r) => `
+    <li>
+      <div><div class="t">${fmt.date(r.date)}</div>
+        <div class="m">${r.notes ? esc(r.notes) : "No notes"}</div></div>
+      <div class="r">${inlineDual(inUnit(r.odometer, r.unit, u), "distance", units)}
+        <div style="margin-top:6px"><button type="button" class="del" data-id="${esc(r.id)}" data-date="${esc(r.date)}">Delete</button></div></div>
+    </li>`);
+  $("rotations").innerHTML = items.join("") || `<li><span class="empty">Nothing logged yet.</span></li>`;
+  $("rotations").querySelectorAll(".del").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm(`Delete the rotation from ${fmt.date(b.dataset.date)}?`)) return;
+    b.disabled = true;
+    try { await api(`api/maintenance/tyre-rotations/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); await load(); }
+    catch (err) { alert(err.message); b.disabled = false; }
+  }));
+}
+
+function renderServices() {
+  const u = data.units.distance;
+  const units = { distance: u };
+  const items = data.services.map((s) => {
+    const dist = s.mileage != null ? inUnit(s.mileage, s.unit || "km", u) : null;
+    const extra = [s.provider, s.notes, s.operations].filter(Boolean).map(esc).join(" · ");
+    return `<li>
+      <div><div class="t">${esc(s.category_label || "Service")}<span class="code">${esc(s.category || "")}</span></div>
+        <div class="m">${fmt.date(s.date)}${extra ? " · " + extra : ""}</div></div>
+      <div class="r">${dist != null ? inlineDual(dist, "distance", units) : "–"}</div>
+    </li>`;
+  });
+  $("services").innerHTML = items.join("") || `<li><span class="empty">No service records from Toyota yet.</span></li>`;
+}
+
+function render() {
+  if (data.alias) $("name").textContent = data.alias;
+  $("info").textContent = data.mock ? "Mock mode: sample data. Anything you log here is saved to the mock data folder." : "";
+  $("info").classList.toggle("show", !!data.mock);
+  const u = data.units.distance;
+  if (data.odometer) {
+    const o = inUnit(data.odometer.value, data.odometer.unit, u);
+    $("odo-line").textContent = `Odometer ${fmt.n(o)} ${u}`;
+  }
+  renderDue();
+  renderRotations();
+  renderServices();
+
+  // Prefill the forms once.
+  if (!$("f-date").value) $("f-date").value = data.today;
+  $("f-date").max = data.today;
+  if (!$("f-odo").value && data.odometer) $("f-odo").value = Math.round(inUnit(data.odometer.value, data.odometer.unit, u));
+  if (!$("f-unit").dataset.set) { $("f-unit").value = u; $("f-unit").dataset.set = "1"; }
+  if (!$("settings-form").dataset.set) {
+    $("s-interval").value = data.settings.rotation_interval;
+    $("s-unit").value = data.settings.rotation_interval_unit;
+    $("s-months").value = data.settings.rotation_months;
+    $("settings-form").dataset.set = "1";
+  }
+}
+
+async function load() {
+  try {
+    data = await api("api/maintenance");
+    $("error").classList.remove("show");
+    render();
+  } catch (err) {
+    $("error").textContent = `Couldn't load maintenance data: ${err.message}`;
+    $("error").classList.add("show");
+  }
+}
+
+$("rot-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("rot-msg");
+  msg.className = "form-msg"; msg.textContent = "Saving…";
+  try {
+    await api("api/maintenance/tyre-rotations", { method: "POST", body: {
+      date: $("f-date").value, odometer: Number($("f-odo").value),
+      unit: $("f-unit").value, notes: $("f-notes").value,
+    } });
+    $("f-notes").value = "";
+    msg.textContent = "Saved.";
+    await load();
+  } catch (err) {
+    msg.className = "form-msg bad"; msg.textContent = err.message;
+  }
+});
+
+$("settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("settings-msg");
+  try {
+    data.settings = await api("api/maintenance/settings", { method: "PUT", body: {
+      rotation_interval: Number($("s-interval").value),
+      rotation_interval_unit: $("s-unit").value,
+      rotation_months: Number($("s-months").value),
+    } });
+    msg.className = "form-msg"; msg.textContent = "Saved.";
+    renderDue();
+  } catch (err) {
+    msg.className = "form-msg bad"; msg.textContent = err.message;
+  }
+});
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+load();
+</script>
+</body>
+</html>
