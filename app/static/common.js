@@ -132,6 +132,30 @@ function updatedText(s) {
   if (s?.fetched_at) return `Updated ${fmt.rel(s.fetched_at)} · every ${s.poll_minutes} min`;
   return s?.refreshing ? "Fetching from Toyota…" : "No data yet";
 }
+/* ---------- header buttons: Backup and Refresh, on every page ---------- */
+// onFresh(snapshot) lets each page redraw after a manual refresh.
+function setupHeader(onFresh) {
+  $("backup").addEventListener("click", () => { window.location.href = "api/backup"; });
+
+  const btn = $("refresh");
+  const setLabel = (t) => { btn.querySelector(".refresh-label").textContent = t; btn.title = t; };
+  btn.addEventListener("click", async () => {
+    btn.disabled = true; setLabel("Refreshing…");
+    try {
+      const fresh = await api("api/refresh", { method: "POST" });
+      const merged = { ...(lastSeen.get("api/state") || {}), ...fresh };
+      lastSeen.set("api/state", merged);
+      $("updated").textContent = updatedText(merged);
+      setLabel("Refresh");
+      onFresh?.(fresh);
+    } catch (err) {
+      setLabel(err.status === 429 ? "Too soon" : "Failed");
+      $("updated").textContent = err.message;
+      setTimeout(() => { setLabel("Refresh"); $("updated").textContent = updatedText(lastSeen.get("api/state")); }, 3000);
+    } finally { btn.disabled = false; }
+  });
+}
+
 // For pages that don't load /api/state themselves.
 async function syncUpdated() {
   const cached = lastSeen.get("api/state");

@@ -38,7 +38,9 @@ There is no test suite, linter, or build step configured in this repo.
   `Collector.run_forever()` as a background task on startup, optional HTTP Basic
   auth (`guard`, only enforced when `DASHBOARD_PASSWORD` is set), the pages
   (`/`, `/service`, `/static/*`) and the JSON API: `/api/state`, `/api/car-image`,
-  `POST /api/refresh`, `POST /api/command`, `/api/trips*`, `/api/stats` and `/api/maintenance/*`.
+  `POST /api/refresh`, `POST /api/command`, `/api/trips*`, `/api/stats`, `/api/backup` and `/api/maintenance/*`.
+  A middleware sets `Cache-Control: no-cache` on everything that doesn't set its
+  own, so browsers never pair a new page with a stale `common.js`.
   **Every POST/PUT/DELETE must depend on `same_site_write`** (requires an
   `X-Rosa: 1` header, a CSRF guard); keep that on any new write route.
 - `app/remote.py` — the fixed allow-list of remote commands (`COMMANDS`), each
@@ -87,7 +89,10 @@ There is no test suite, linter, or build step configured in this repo.
   (dashboard + remote control, polls `/api/state`), `trips.html` (all trips,
   paged, with route maps), `stats.html` (weekly/monthly petrol and distance,
   hand-built SVG charts), `service.html` (Service & Maintenance), `app.css` (shared styles, light/dark tokens) and `common.js`
-  (theme toggle, formatting, unit conversion, `api()` helper that adds `X-Rosa`).
+  (theme toggle, formatting, unit conversion, `api()` helper that adds `X-Rosa`,
+  `lastSeen` per-tab cache for instant page switches, and `setupHeader()` /
+  `syncUpdated()` for the Backup + Refresh buttons and "Updated … ago" line that
+  every page header shares).
 - Other files written to `DATA_DIR` at runtime: `snapshot.json`,
   `maintenance.json`, `trips.json`, `routes/`, `command-log.json` (audit log of remote commands),
   `car-image.*`, and pytoyoda's HTTP cache in `.cache/` (the container's working

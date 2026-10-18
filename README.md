@@ -93,11 +93,11 @@ Stored in `maintenance.json` in the data volume:
   "Next due" uses whichever comes first: distance (default 5,000 mi) or time
   (default 6 months), both editable on the page.
 
-Back it up with:
+## Backup
 
-```bash
-docker compose cp rosa-dash:/data/maintenance.json ./maintenance-backup.json
-```
+The download button in every page header saves `rosa-backup-<date>.json`: the
+latest snapshot, maintenance records, every trip and route, and the command log.
+No Toyota credentials are included.
 
 ## Logs
 
@@ -126,6 +126,7 @@ In Safari, Share → Add to Home Screen. It opens full-screen like an app.
 | GET    | `/api/trips/routes` | Every stored route, simplified |
 | GET    | `/api/stats?period=week\|month` | Petrol and distance totals per period |
 | GET    | `/api/trips/{id}/route` | One trip's full route |
+| GET    | `/api/backup` | Everything stored, as one JSON download |
 | GET    | `/api/maintenance` | Service history, tyre rotations, interval |
 | POST   | `/api/maintenance/tyre-rotations` | Log a rotation |
 | DELETE | `/api/maintenance/tyre-rotations/{id}` | Remove one |

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -30,6 +30,7 @@ DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
 STATIC = Path(__file__).parent / "static"
 
 collector = Collector()
+BACKGROUND: set[asyncio.Task] = set()  # keeps fire-and-forget tasks from being garbage-collected
 
 
 @asynccontextmanager
@@ -137,7 +138,19 @@ async def refresh() -> dict:
         wait = MANUAL_REFRESH_COOLDOWN_S - (datetime.now(timezone.utc) - last).total_seconds()
         if wait > 0:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Try again in {int(wait)}s")
-    return await collector.refresh()
+    snapshot = await collector.refresh()
+    # Routes for any new trips, without waiting for the next scheduled refresh.
+    task = asyncio.create_task(collector.backfill_routes())
+    BACKGROUND.add(task)
+    task.add_done_callback(BACKGROUND.discard)
+    return snapshot
+
+
+@app.get("/api/backup", dependencies=[Depends(guard)])
+async def backup() -> JSONResponse:
+    data = await asyncio.to_thread(collector.backup)
+    name = f"rosa-backup-{date.today().isoformat()}.json"
+    return JSONResponse(data, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 # -- remote control ---------------------------------------------------------------------------

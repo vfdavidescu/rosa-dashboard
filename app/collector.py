@@ -404,6 +404,22 @@ class Collector:
             log.info("fetched %d route(s), %d to go", done, len(self.trips.missing_routes()))
             await asyncio.sleep(5)
 
+    def backup(self) -> dict:
+        """Everything stored locally, as one JSON-able dict. Runs in a worker thread."""
+        try:
+            command_log = json.loads(self.command_log_file.read_text())
+        except (OSError, ValueError):
+            command_log = []
+        trip_ids = list(self.trips.trips)
+        return {
+            "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "snapshot": self.snapshot,
+            "maintenance": self.maintenance.data,
+            "trips": {i: self.trips.trips[i] for i in trip_ids},
+            "routes": {i: r for i in trip_ids if (r := self.trips.route(i))},
+            "command_log": command_log,
+        }
+
     # -- remote commands ---------------------------------------------------------------
     def _read_last_command(self) -> dict | None:
         try:
