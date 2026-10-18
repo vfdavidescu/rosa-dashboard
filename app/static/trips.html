@@ -98,7 +98,7 @@
 <script>
 const PER_PAGE = 20;
 const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-let data = null, page = 1, allMap = null, tripMap = null, routesLoaded = false;
+let data = null, page = 1, allMap = null, tripMap = null, routesLayer = null, routeCount = -1, routeWatch = 0;
 
 const accent = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
 
@@ -109,19 +109,41 @@ function newMap(el) {
 }
 
 /* ---------- every road ---------- */
+// Draws every stored route. Re-draws keep your zoom and position unless the map was empty before.
 async function loadRoutes() {
-  if (routesLoaded || !window.L) return;
+  if (!window.L) return;
   try {
     const { routes } = await api("api/trips/routes");
-    routesLoaded = true;
     if (!routes.length) { $("all-map").hidden = true; return; }
+    if (routes.length === routeCount) return; // nothing new
+    const first = routeCount < 1;
+    routeCount = routes.length;
+    $("all-map").hidden = false;
     allMap = allMap || newMap("all-map");
+    routesLayer?.remove();
     const color = accent();
-    const lines = routes.map((r) => L.polyline(r, { color, weight: 3, opacity: 0.35, interactive: false }).addTo(allMap));
-    allMap.fitBounds(L.featureGroup(lines).getBounds(), { padding: [12, 12] });
+    routesLayer = L.featureGroup(routes.map((r) => L.polyline(r, { color, weight: 3, opacity: 0.35, interactive: false }))).addTo(allMap);
+    if (first) { allMap.invalidateSize(); allMap.fitBounds(routesLayer.getBounds(), { padding: [12, 12] }); }
   } catch (err) {
     $("routes-note").textContent = `Couldn't load routes: ${err.message}`;
   }
+}
+
+// After a refresh, new routes download in the background: wait for them, then add them to the map.
+async function watchNewRoutes() {
+  const mine = ++routeWatch; // a newer refresh takes over
+  for (let i = 0; i < 25; i++) { // about 75 s at most
+    try {
+      const { routes_pending } = await api("api/trips?page=1&per_page=1");
+      if (mine !== routeWatch) return;
+      $("routes-note").textContent = routes_pending ? `Downloading routes from Toyota: ${fmt.n(routes_pending)} to go.` : "";
+      if (!routes_pending) break;
+    } catch (e) { break; }
+    await new Promise((r) => setTimeout(r, 3000));
+    if (mine !== routeWatch) return;
+  }
+  await loadRoutes();
+  if (mine === routeWatch && !document.querySelector("tr.trip.open")) load(); // marks which trips now have a route; skipped while you're viewing one
 }
 
 /* ---------- one trip ---------- */
@@ -217,7 +239,7 @@ load();
 loadRoutes();
 syncUpdated();
 setInterval(syncUpdated, 60_000);
-setupHeader(() => load());
+setupHeader(() => { load(); watchNewRoutes(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) syncUpdated(); });
 </script>
 </body>
