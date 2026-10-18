@@ -1,5 +1,10 @@
 # Rosa Dash
 
+> **Vibe-coded.** Built entirely with Claude out of frustration with the
+> official MyToyota app (re-prompts for your password on every launch, no
+> autofill) and the lack of developer support. I reviewed the code; I didn't
+> write it. Use at your own risk.
+
 A small self-hosted dashboard for a Toyota on the MyToyota (Europe) service.
 It logs in once, keeps the token, and polls in the background, so opening the
 page never asks for a password.
@@ -125,6 +130,11 @@ another project). All POST/PUT/DELETE calls need an `X-Rosa: 1` header.
 - Default poll is every 30 minutes, minimum 10.
 - Keep this on your LAN or behind Tailscale/WireGuard. If you do expose it,
   set `DASHBOARD_PASSWORD` and put it behind HTTPS.
+
+## Contributing
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+(`feat:`, `fix:`, `docs:`, etc).
 
 ## Layout
 
