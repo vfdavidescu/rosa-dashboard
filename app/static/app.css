@@ -3,6 +3,7 @@
     --accent: #c8102e; --accent-soft: #c8102e1a;
     --ok: #15803d; --warn: #b45309; --bad: #c8102e;
     --series-1: #2a78d6;
+    --route: #6d28d9; /* driven roads on the map: no road on the OSM map is violet */
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     --sans: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
     color-scheme: light;
@@ -13,6 +14,7 @@
       --accent: #ef3b4f; --accent-soft: #ef3b4f22;
       --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
       --series-1: #3987e5;
+      --route: #b18cff;
       color-scheme: dark;
     }
   }
@@ -21,6 +23,7 @@
     --accent: #ef3b4f; --accent-soft: #ef3b4f22;
     --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
     --series-1: #3987e5;
+    --route: #b18cff;
     color-scheme: dark;
   }
 

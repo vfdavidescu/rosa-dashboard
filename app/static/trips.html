@@ -98,9 +98,9 @@
 <script>
 const PER_PAGE = 20;
 const TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-let data = null, page = 1, allMap = null, tripMap = null, routesLayer = null, routeCount = -1, routeWatch = 0;
+let data = null, page = 1, allMap = null, tripMap = null, routesLayer = null, routeCount = -1, routeWatch = 0, tripLine = null, tripEnd = null;
 
-const accent = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+const routeColor = () => getComputedStyle(document.documentElement).getPropertyValue("--route").trim();
 
 function newMap(el) {
   const map = L.map(el, { zoomControl: false, attributionControl: true, preferCanvas: true, tap: false });
@@ -121,8 +121,8 @@ async function loadRoutes() {
     $("all-map").hidden = false;
     allMap = allMap || newMap("all-map");
     routesLayer?.remove();
-    const color = accent();
-    routesLayer = L.featureGroup(routes.map((r) => L.polyline(r, { color, weight: 3, opacity: 0.35, interactive: false }))).addTo(allMap);
+    const color = routeColor();
+    routesLayer = L.featureGroup(routes.map((r) => L.polyline(r, { color, weight: 3, opacity: 0.6, interactive: false }))).addTo(allMap);
     if (first) { allMap.invalidateSize(); allMap.fitBounds(routesLayer.getBounds(), { padding: [12, 12] }); }
   } catch (err) {
     $("routes-note").textContent = `Couldn't load routes: ${err.message}`;
@@ -146,9 +146,19 @@ async function watchNewRoutes() {
   if (mine === routeWatch && !document.querySelector("tr.trip.open")) load(); // marks which trips now have a route; skipped while you're viewing one
 }
 
+// Light/dark switch: recolour what's already drawn.
+function recolour() {
+  const color = routeColor();
+  routesLayer?.setStyle({ color });
+  tripLine?.setStyle({ color });
+  tripEnd?.setStyle({ fillColor: color });
+}
+new MutationObserver(recolour).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", recolour);
+
 /* ---------- one trip ---------- */
 function closeTrip() {
-  if (tripMap) { tripMap.remove(); tripMap = null; }
+  if (tripMap) { tripMap.remove(); tripMap = null; tripLine = tripEnd = null; }
   document.querySelector("tr.trip-map-row")?.remove();
   document.querySelectorAll("tr.trip.open").forEach((r) => { r.classList.remove("open"); r.setAttribute("aria-expanded", "false"); });
 }
@@ -172,9 +182,9 @@ async function toggleTrip(row) {
     const { points } = await api(`api/trips/${encodeURIComponent(row.dataset.id)}/route`);
     if (!detail.isConnected) return; // closed while loading
     tripMap = newMap(el);
-    const line = L.polyline(points, { color: accent(), weight: 4 }).addTo(tripMap);
+    const line = tripLine = L.polyline(points, { color: routeColor(), weight: 4 }).addTo(tripMap);
     L.circleMarker(points[0], { radius: 6, color: "#fff", weight: 2, fillColor: "#15803d", fillOpacity: 1 }).addTo(tripMap).bindTooltip("Start");
-    L.circleMarker(points.at(-1), { radius: 6, color: "#fff", weight: 2, fillColor: accent(), fillOpacity: 1 }).addTo(tripMap).bindTooltip("End");
+    tripEnd = L.circleMarker(points.at(-1), { radius: 6, color: "#fff", weight: 2, fillColor: routeColor(), fillOpacity: 1 }).addTo(tripMap).bindTooltip("End");
     tripMap.fitBounds(line.getBounds(), { padding: [16, 16] });
   } catch (err) {
     el.outerHTML = `<p class="empty" style="margin:0">${esc(err.message)}</p>`;
