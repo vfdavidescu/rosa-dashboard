@@ -92,7 +92,7 @@
       <div class="remote-last" id="remote-last" hidden></div>
     </article>
 
-    <article class="card span-12">
+    <article class="card span-5">
       <h2>Doors &amp; windows</h2>
       <div class="lockwrap">
         <svg viewBox="0 0 100 190" aria-hidden="true">
@@ -121,13 +121,13 @@
       <div class="sub" id="maptime" style="margin-top:8px"></div>
     </article>
 
-    <article class="card span-5">
+    <article class="card span-12">
       <h2>Driving</h2>
       <div class="seg" role="tablist">
         <button type="button" class="on" data-period="week">This week</button>
         <button type="button" data-period="month">This month</button>
       </div>
-      <div class="stats">
+      <div class="stats stats-4">
         <div class="stat"><div id="st-distance"><div class="v">–</div></div><div class="l">distance</div></div>
         <div class="stat"><div id="st-consumption"><div class="v">–</div></div><div class="l">avg consumption</div></div>
         <div class="stat"><div class="v" id="st-duration">–</div><div class="l">time driving</div></div>
@@ -137,14 +137,6 @@
       <div class="evlabel" id="evlabel">EV share</div>
     </article>
 
-    <article class="card span-6">
-      <h2>Last service</h2>
-      <div id="service" class="empty">No service records</div>
-    </article>
-    <article class="card span-6">
-      <h2>Warning lights</h2>
-      <div id="warnings" class="empty">None reported</div>
-    </article>
   </section>
 
   <footer id="footer"></footer>
@@ -221,24 +213,16 @@ function renderHero(v) {
   $("model").textContent = !name || /^toyota\b/i.test(name) ? name : `Toyota ${name}`;
 
   const st = overallStatus(v);
-  const label = st.level === "ok" ? "All good" : st.level === "warn"
-    ? (st.issues.length === 1 ? "1 thing to check" : `${st.issues.length} things to check`) : "Status unknown";
-  const icon = st.level === "ok" ? ICON_TICK : st.level === "warn" ? ICON_WARN : ICON_UNKNOWN;
-  $("status").innerHTML =
-    `<div class="status-pill ${st.level === "ok" ? "" : st.level}" role="status"><span class="ic">${icon}</span>${label}</div>` +
-    (st.issues.length ? `<div class="status-detail">${st.issues.map(esc).join(" · ")}</div>` : "");
+  const pill = (cls, icon, text) => `<div class="status-pill ${cls}" role="status"><span class="ic">${icon}</span>${text}</div>`;
+  $("status").innerHTML = st.level === "warn"
+    ? `<div class="status-list">${st.issues.map((i) => pill("warn", ICON_WARN, esc(i))).join("")}</div>`
+    : pill(st.level === "ok" ? "" : "unknown", st.level === "ok" ? ICON_TICK : ICON_UNKNOWN, st.level === "ok" ? "All good" : "Status unknown");
 
   const d = v.dashboard || {};
   $("hs-odo").innerHTML = bigDual(d.odometer, "distance", v.units, "v");
   $("hs-range").innerHTML = bigDual(d.total_range ?? d.fuel_range, "distance", v.units, "v");
 
   $("hs-fuel").textContent = d.fuel_level == null ? "–" : `${d.fuel_level}%`;
-}
-
-function renderWarnings(d) {
-  const w = d.warning_lights || [];
-  $("warnings").textContent = w.length ? w.join(", ") : "None reported";
-  $("warnings").className = w.length ? "" : "empty";
 }
 
 function renderLocks(locks) {
@@ -287,17 +271,6 @@ function renderStats(v) {
   const ev = s && s.distance && s.ev_distance != null ? Math.round((s.ev_distance / s.distance) * 100) : null;
   $("evbar").style.width = `${ev ?? 0}%`;
   $("evlabel").textContent = ev == null ? "EV share –" : `${ev}% of distance driven on electric`;
-}
-
-const SERVICE_LABELS = { MNT: "Maintenance service", HSC: "Hybrid service check", VDE: "Vehicle delivery" };
-function renderService(s, units) {
-  if (!s) return;
-  $("service").className = "";
-  $("service").innerHTML = `
-    <div class="kv"><span>Date</span><span>${s.date ? fmt.date(s.date) : "–"}</span></div>
-    <div class="kv"><span>Mileage</span><span>${inlineDual(s.odometer, "distance", units)}</span></div>
-    <div class="kv"><span>Type</span><span>${esc(SERVICE_LABELS[s.category] || s.category || "–")}</span></div>
-    <div class="kv"><span>History</span><span><a href="service" style="color:var(--accent)">All records →</a></span></div>`;
 }
 
 /* ---------- remote control ---------- */
@@ -472,11 +445,9 @@ function render() {
   $("name").textContent = v.alias || "My Toyota";
   renderHero(v);
   renderRemote(v);
-  renderWarnings(v.dashboard || {});
   renderLocks(v.locks || {});
   renderMap(v.location || {});
   renderStats(v);
-  renderService(v.service, v.units);
   $("footer").textContent = v.vin ? `VIN ${v.vin}` : "";
 }
 

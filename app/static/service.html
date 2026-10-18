@@ -66,6 +66,39 @@
   <div class="banner info" id="info"></div>
 
   <section class="grid">
+    <!-- service: last one comes from Toyota's records, the next is worked out from an interval -->
+    <article class="card span-12">
+      <h2>Service</h2>
+      <div class="svc-grid">
+        <div>
+          <div class="svc-label">Last service</div>
+          <div id="svc-last"><p class="empty" style="margin:0">Loading…</p></div>
+        </div>
+        <div>
+          <div class="svc-label">Next service</div>
+          <div id="svc-due"></div>
+          <div class="bar" id="svc-bar" hidden><div></div></div>
+          <div class="bar-legend" id="svc-legend" hidden></div>
+        </div>
+      </div>
+
+      <details class="sec" style="margin-top:16px">
+        <summary>Interval: <span id="svc-interval-text">–</span> · change</summary>
+        <form class="settings-row" id="svc-settings-form">
+          Every
+          <input type="number" id="sv-interval" min="1" step="1" required aria-label="Distance interval">
+          <select id="sv-unit" aria-label="Unit"><option value="mi">mi</option><option value="km">km</option></select>
+          or
+          <input type="number" id="sv-months" min="1" max="120" step="1" required aria-label="Months">
+          months, whichever comes first
+          <button type="submit">Save</button>
+          <span class="form-msg" id="svc-settings-msg"></span>
+        </form>
+        <p class="note" style="margin:10px 0 0">Toyota doesn't say when the next service is due, so this is worked out
+          from the last one using the interval above.</p>
+      </details>
+    </article>
+
     <!-- tyre rotation: tracked here, not by Toyota -->
     <article class="card span-7">
       <div class="maphead">
@@ -146,49 +179,48 @@ function addMonths(iso, months) {
 }
 const daysBetween = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000);
 
-function renderDue() {
+// One "due" tracker (tyre rotation or service): by distance or by date, whichever comes first.
+// c = { due, bar, legend, intervalText: element ids, interval (in the page's unit), months,
+//       last: { date, odo } | null, noun, lastLabel, empty (html), soonMiles, soonDays? (omit: date never means "soon") }
+function renderDueCard(c) {
   const u = data.units.distance;
-  const s = data.settings;
-  const interval = inUnit(s.rotation_interval, s.rotation_interval_unit, u);
-  $("interval-text").textContent = `every ${fmt.n(interval)} ${u} or ${s.rotation_months} months`;
-
-  const last = data.tyre_rotations[0];
   const odo = data.odometer ? inUnit(data.odometer.value, data.odometer.unit, u) : null;
-  const bar = $("bar"), legend = $("bar-legend");
-  if (!last) {
-    $("due").innerHTML = `<p class="note" style="margin:0">No rotations logged yet. Add your most recent one and
-      this card will track when the next is due.</p>`;
+  $(c.intervalText).textContent = `every ${fmt.n(c.interval)} ${u} or ${c.months} months`;
+  const bar = $(c.bar), legend = $(c.legend);
+  if (!c.last) {
+    $(c.due).innerHTML = c.empty;
     bar.hidden = legend.hidden = true;
     return;
   }
 
-  const lastOdo = inUnit(last.odometer, last.unit, u);
-  const nextDate = addMonths(last.date, s.rotation_months);
+  const nextDate = addMonths(c.last.date, c.months);
   const daysLeft = daysBetween(data.today, nextDate);
-  const since = odo != null ? Math.max(0, odo - lastOdo) : null;
-  const left = since != null ? interval - since : null;
+  const total = Math.max(1, daysBetween(c.last.date, nextDate));
+  const since = odo != null && c.last.odo != null ? Math.max(0, odo - c.last.odo) : null;
+  const left = since != null ? c.interval - since : null;
 
-  const distFrac = since != null ? since / interval : 0;
-  const timeFrac = 1 - daysLeft / Math.max(1, daysBetween(last.date, nextDate));
-  const frac = Math.max(distFrac, timeFrac);           // whichever comes first
+  const distFrac = since != null ? since / c.interval : 0;
+  const timeFrac = 1 - daysLeft / total;
+  const frac = Math.max(distFrac, timeFrac);
   const over = (left != null && left <= 0) || daysLeft <= 0;
-  const soonDist = convertDistance(100, "mi", u); // distance warning only in the last 100 miles
-  const soon = !over && ((left != null && left < soonDist) || timeFrac >= 0.85);
+  const soonDist = convertDistance(c.soonMiles, "mi", u);   // "due soon" = fewer than this many miles to go
+  const soon = !over && ((left != null && left < soonDist) || (c.soonDays != null && daysLeft <= c.soonDays));
   const level = over ? "over" : soon ? "soon" : "ok";
 
   let headline, sub;
   if (over) {
     headline = "Due now";
     const bits = [];
-    if (left != null && left <= 0) bits.push(`${fmt.n(-left)} ${u} over`);
+    if (left != null && left <= 0) bits.push(`${fmt.n(Math.abs(left))} ${u} over`);
     if (daysLeft <= 0) bits.push(`${-daysLeft} day${daysLeft === -1 ? "" : "s"} past the date`);
     sub = bits.join(" · ");
   } else {
     headline = left != null ? `${fmt.n(left)} ${u}` : fmt.date(nextDate);
-    sub = left != null ? `to go, or by ${fmt.date(nextDate)}` : "next rotation date (odometer not available)";
+    sub = left != null ? `to go, or by ${fmt.date(nextDate)}` : `next ${c.noun} date (odometer not available)`;
   }
-  const alt = left != null && !over ? `<span class="alt" style="display:block;font-size:13px;margin-top:4px">${fmt.n(convertDistance(left, u, u === "mi" ? "km" : "mi"))} ${u === "mi" ? "km" : "mi"}</span>` : "";
-  $("due").innerHTML = `
+  const other = u === "mi" ? "km" : "mi";
+  const alt = left != null && !over ? `<span class="alt" style="display:block;font-size:13px;margin-top:4px">${fmt.n(convertDistance(left, u, other))} ${other}</span>` : "";
+  $(c.due).innerHTML = `
     <div class="due"><div><div class="due-big">${headline}</div>${alt}</div>
       <span class="chip ${level}">${over ? "Overdue" : soon ? "Due soon" : "On track"}</span></div>
     <div class="sub" style="margin-top:6px">${esc(sub)}</div>`;
@@ -196,8 +228,49 @@ function renderDue() {
   bar.hidden = legend.hidden = false;
   bar.className = `bar ${level === "ok" ? "" : level}`;
   bar.firstElementChild.style.width = `${Math.min(100, Math.round(frac * 100))}%`;
-  legend.innerHTML = `<span>Last: ${fmt.date(last.date)} at ${fmt.n(lastOdo)} ${u}</span>` +
+  legend.innerHTML = `<span>${c.lastLabel}: ${fmt.date(c.last.date)}${c.last.odo != null ? ` at ${fmt.n(c.last.odo)} ${u}` : ""}</span>` +
     `<span>${since != null ? `${fmt.n(since)} ${u} since` : ""}</span>`;
+}
+
+function renderDue() {
+  const u = data.units.distance, s = data.settings, last = data.tyre_rotations[0];
+  renderDueCard({
+    due: "due", bar: "bar", legend: "bar-legend", intervalText: "interval-text",
+    interval: inUnit(s.rotation_interval, s.rotation_interval_unit, u), months: s.rotation_months,
+    last: last && { date: last.date, odo: inUnit(last.odometer, last.unit, u) },
+    noun: "rotation", lastLabel: "Last", soonMiles: 100,
+    empty: `<p class="note" style="margin:0">No rotations logged yet. Add your most recent one and
+      this card will track when the next is due.</p>`,
+  });
+}
+
+// Last service: the newest Toyota record that isn't the delivery. Next service: counted from it
+// (or from delivery, until there is a first service).
+function renderService() {
+  const u = data.units.distance, s = data.settings;
+  if (s.service_interval == null) return; // saved copy from before this setting existed; the fresh data is on its way
+  const real = data.services.filter((r) => r.category !== "VDE");
+  const last = real[0] || null;
+  const base = last || data.services.find((r) => r.category === "VDE") || null;
+
+  if (last) {
+    const types = [...new Set(real.filter((r) => r.date === last.date).map((r) => r.category_label || "Service"))].join(" + ");
+    const dist = last.mileage != null ? inUnit(last.mileage, last.unit || "km", u) : null;
+    $("svc-last").innerHTML = `
+      <div class="due-big">${fmt.date(last.date)}</div>
+      <div class="sub" style="margin-top:6px">${esc(types)}</div>
+      <div class="sub">${dist != null ? inlineDual(dist, "distance", { distance: u }) : "–"}${last.provider ? " · " + esc(last.provider) : ""}</div>`;
+  } else {
+    $("svc-last").innerHTML = `<p class="note" style="margin:0">No service records from Toyota yet.</p>`;
+  }
+
+  renderDueCard({
+    due: "svc-due", bar: "svc-bar", legend: "svc-legend", intervalText: "svc-interval-text",
+    interval: inUnit(s.service_interval, s.service_interval_unit, u), months: s.service_months,
+    last: base && { date: base.date, odo: base.mileage != null ? inUnit(base.mileage, base.unit || "km", u) : null },
+    noun: "service", lastLabel: last ? "Last service" : "Delivered", soonMiles: 500, soonDays: 30,
+    empty: `<p class="note" style="margin:0">The next service can't be worked out until Toyota has a service record.</p>`,
+  });
 }
 
 function renderRotations() {
@@ -243,6 +316,7 @@ function render() {
     const o = inUnit(data.odometer.value, data.odometer.unit, u);
     $("odo-line").textContent = `Odometer ${fmt.n(o)} ${u}`;
   }
+  renderService();
   renderDue();
   renderRotations();
   renderServices();
@@ -257,6 +331,12 @@ function render() {
     $("s-unit").value = data.settings.rotation_interval_unit;
     $("s-months").value = data.settings.rotation_months;
     $("settings-form").dataset.set = "1";
+  }
+  if (!$("svc-settings-form").dataset.set && data.settings.service_interval != null) {
+    $("sv-interval").value = data.settings.service_interval;
+    $("sv-unit").value = data.settings.service_interval_unit;
+    $("sv-months").value = data.settings.service_months;
+    $("svc-settings-form").dataset.set = "1";
   }
 }
 
@@ -283,6 +363,22 @@ $("rot-form").addEventListener("submit", async (e) => {
     $("f-notes").value = "";
     msg.textContent = "Saved.";
     await load();
+  } catch (err) {
+    msg.className = "form-msg bad"; msg.textContent = err.message;
+  }
+});
+
+$("svc-settings-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("svc-settings-msg");
+  try {
+    data.settings = await api("api/maintenance/settings", { method: "PUT", body: {
+      service_interval: Number($("sv-interval").value),
+      service_interval_unit: $("sv-unit").value,
+      service_months: Number($("sv-months").value),
+    } });
+    msg.className = "form-msg"; msg.textContent = "Saved.";
+    renderService();
   } catch (err) {
     msg.className = "form-msg bad"; msg.textContent = err.message;
   }

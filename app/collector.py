@@ -146,7 +146,6 @@ async def vehicle_snapshot(vehicle: Any, use_metric: bool) -> dict:
     dash = _get(lambda: vehicle.dashboard)
     loc = _get(lambda: vehicle.location)
     lock = _get(lambda: vehicle.lock_status)
-    service = _get(lambda: vehicle.get_latest_service_history())
     info = _get(lambda: vehicle._vehicle_info)  # static details from the vehicle list
 
     # These each cost one API call; a gap between them keeps Toyota happy.
@@ -213,14 +212,6 @@ async def vehicle_snapshot(vehicle: Any, use_metric: bool) -> dict:
                 "rear_left": _window(_get(lambda: windows.driver_rear_seat)),
                 "rear_right": _window(_get(lambda: windows.passenger_rear_seat)),
             },
-        },
-        "service": None
-        if service is None
-        else {
-            "date": _iso(_get(lambda: service.service_date)),
-            "odometer": _round(_get(lambda: service.odometer), 0),
-            "category": _get(lambda: service.service_category),
-            "provider": _get(lambda: service.service_provider),
         },
         "summaries": {"week": _summary(week, use_metric), "month": _summary(month, use_metric)},
     }

@@ -96,12 +96,6 @@ def mock_snapshot(use_metric: bool) -> dict:
                 "rear_right": {"closed": False},
             },
         },
-        "service": {
-            "date": "2026-06-14",
-            "odometer": round(6020 * k),
-            "category": "Annual service",
-            "provider": "Dealer",
-        },
         "summaries": {
             "week": {
                 "from": (now - timedelta(days=now.weekday())).date().isoformat(),

@@ -294,9 +294,13 @@ async def delete_rotation(rid: str) -> dict:
 
 
 class SettingsRequest(BaseModel):
-    rotation_interval: float = Field(gt=0, le=100_000)
-    rotation_interval_unit: str = Field(pattern="^(mi|km)$")
-    rotation_months: int = Field(gt=0, le=60)
+    """Either group (tyre rotation, service) can be saved on its own; None = leave as is."""
+    rotation_interval: float | None = Field(default=None, gt=0, le=100_000)
+    rotation_interval_unit: str | None = Field(default=None, pattern="^(mi|km)$")
+    rotation_months: int | None = Field(default=None, gt=0, le=60)
+    service_interval: float | None = Field(default=None, gt=0, le=200_000)
+    service_interval_unit: str | None = Field(default=None, pattern="^(mi|km)$")
+    service_months: int | None = Field(default=None, gt=0, le=120)
 
 
 @app.put("/api/maintenance/settings", dependencies=[Depends(guard), Depends(same_site_write)])

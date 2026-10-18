@@ -25,10 +25,11 @@ change their API at any time.
   route. Routes download gradually (one API call each) after the first start.
 - **Statistics** page (`/stats`): litres of petrol and distance per week or
   month, with charts and a table of every period.
-- Odometer, last service, warning lights
+- Odometer and fuel in the top card, which also shows any warning (open door, low fuel, warning light) as a message
 - **Remote control** (opt-in): lock/unlock, boot, hazards, horn, climate,
   close windows, but only the ones your car reports it supports
-- **Service & Maintenance** page (`/service`): Toyota's service history saved
+- **Service & Maintenance** page (`/service`): last and next service (the next is
+  worked out from an interval you can change), Toyota's service history saved
   locally for good, plus tyre rotations you log yourself, with a "next due"
   tracker
 

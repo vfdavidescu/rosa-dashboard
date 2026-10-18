@@ -27,6 +27,11 @@ DEFAULT_SETTINGS = {
     "rotation_interval": 5000,
     "rotation_interval_unit": "mi",
     "rotation_months": 6,
+    # Toyota doesn't report when the next service is due, so it's worked out from
+    # the last one. 12 months or 10,000 miles is the usual UK hybrid schedule.
+    "service_interval": 10000,
+    "service_interval_unit": "mi",
+    "service_months": 12,
 }
 
 # Toyota's service category codes, as seen in the MyToyota API.

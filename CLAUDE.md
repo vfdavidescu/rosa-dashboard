@@ -56,7 +56,9 @@ There is no test suite, linter, or build step configured in this repo.
   `guard` answers wrong passwords one per second globally (Docker hides client IPs).
 - `app/maintenance.py` — `MaintenanceStore`, a JSON file in `DATA_DIR`
   (`maintenance.json`): Toyota service records merged by id (never deleted),
-  user-logged tyre rotations, and the rotation interval. Distances are stored
+  user-logged tyre rotations, and the tyre and service intervals. Toyota gives no
+  next-service date, so the Service page works it out from the last service record
+  (not the `VDE` delivery one) plus the `service_*` settings (default 12 months / 10,000 mi). Distances are stored
   with their own unit and converted only for display.
 - `app/trips.py` — `TripStore`: every trip Toyota has reported (it keeps ~12
   months), in `DATA_DIR/trips.json` (km, L/100km; converted per request) plus
@@ -105,7 +107,7 @@ There is no test suite, linter, or build step configured in this repo.
 
 - Snapshot shape is the contract between `collector.py`, `mock.py`, and
   `index.html`. Changes to one of the nested dicts (`dashboard`, `location`,
-  `locks`, `service`, `summaries`, `model`, `remote_commands`) need
+  `locks`, `summaries`, `model`, `remote_commands`) need
   matching changes in the other two places. `_service_records` is popped by the
   collector before saving; it never reaches the page.
 - Units: `USE_METRIC` picks the primary unit (km/L-100km vs mi/mpg) and pytoyoda
