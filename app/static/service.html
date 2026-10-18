@@ -172,7 +172,8 @@ function renderDue() {
   const timeFrac = 1 - daysLeft / Math.max(1, daysBetween(last.date, nextDate));
   const frac = Math.max(distFrac, timeFrac);           // whichever comes first
   const over = (left != null && left <= 0) || daysLeft <= 0;
-  const soon = !over && frac >= 0.85;
+  const soonDist = convertDistance(100, "mi", u); // distance warning only in the last 100 miles
+  const soon = !over && ((left != null && left < soonDist) || timeFrac >= 0.85);
   const level = over ? "over" : soon ? "soon" : "ok";
 
   let headline, sub;
