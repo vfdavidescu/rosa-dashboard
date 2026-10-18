@@ -29,7 +29,7 @@
       <div class="dot"></div>
       <div>
         <h1 id="name">Rosa</h1>
-        <div class="sub" id="odo-line">Service &amp; maintenance</div>
+        <div class="sub" id="updated">Loading…</div>
       </div>
     </div>
     <div class="actions">
@@ -57,7 +57,10 @@
   <section class="grid">
     <!-- tyre rotation: tracked here, not by Toyota -->
     <article class="card span-7">
-      <h2>Tyre rotation</h2>
+      <div class="maphead">
+        <h2 style="margin:0">Tyre rotation</h2>
+        <span class="sub" id="odo-line" style="margin:0"></span>
+      </div>
       <div id="due"><p class="empty" style="margin:0">Loading…</p></div>
       <div class="bar" id="bar" hidden><div></div></div>
       <div class="bar-legend" id="bar-legend" hidden></div>
@@ -289,10 +292,12 @@ $("settings-form").addEventListener("submit", async (e) => {
   }
 });
 
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { load(); syncUpdated(); } });
 data = lastSeen.get("api/maintenance");
 if (data) render();
 load();
+syncUpdated();
+setInterval(syncUpdated, 60_000);
 </script>
 </body>
 </html>

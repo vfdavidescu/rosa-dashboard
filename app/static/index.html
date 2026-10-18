@@ -484,9 +484,7 @@ function render() {
   $("error").classList.toggle("show", !!state?.error);
   $("info").textContent = state?.mock ? "Mock mode: showing sample data, not your car. Remote commands aren't sent." : "";
   $("info").classList.toggle("show", !!state?.mock);
-  $("updated").textContent = state?.fetched_at
-    ? `Updated ${fmt.rel(state.fetched_at)} · every ${state.poll_minutes} min`
-    : state?.refreshing ? "Fetching from Toyota…" : "No data yet";
+  $("updated").textContent = updatedText(state);
   if (!v) return;
   $("name").textContent = v.alias || "My Toyota";
   renderHero(v);

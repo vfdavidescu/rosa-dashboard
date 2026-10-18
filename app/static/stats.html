@@ -29,7 +29,7 @@
       <div class="dot"></div>
       <div>
         <h1>Rosa</h1>
-        <div class="sub" id="since">Statistics</div>
+        <div class="sub" id="updated">Loading…</div>
       </div>
     </div>
     <div class="actions">
@@ -182,9 +182,8 @@ function render() {
   $("kpi-title").textContent = `This ${w} so far`;
   $("fuel-title").textContent = `Petrol used per ${w} (litres)`;
   $("dist-title").textContent = `Distance per ${w} (${u.distance})`;
-  $("table-title").textContent = isWeek() ? "Every week" : "Every month";
+  $("table-title").textContent = (isWeek() ? "Every week" : "Every month") + (data.since ? ` · since ${fmt.date(data.since)}` : "");
   $("th-period").textContent = isWeek() ? "Week of" : "Month";
-  $("since").textContent = data.since ? `Since ${fmt.date(data.since)}` : "No trips stored yet";
   $("info").textContent = data.mock ? "Mock mode: sample trips, not your car." : "";
   $("info").classList.toggle("show", !!data.mock);
 
@@ -233,10 +232,12 @@ document.querySelectorAll(".seg button").forEach((btn) =>
 
 let resizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => data && render(), 150); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { load(); syncUpdated(); } });
 data = lastSeen.get(`api/stats?period=${period}`);
 if (data) render();
 load();
+syncUpdated();
+setInterval(syncUpdated, 60_000);
 </script>
 </body>
 </html>

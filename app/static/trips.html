@@ -31,7 +31,7 @@
       <div class="dot"></div>
       <div>
         <h1>Rosa</h1>
-        <div class="sub" id="summary">Trips</div>
+        <div class="sub" id="updated">Loading…</div>
       </div>
     </div>
     <div class="actions">
@@ -64,7 +64,7 @@
     </article>
 
     <article class="card span-12">
-      <h2>All trips</h2>
+      <h2 id="trips-title">All trips</h2>
       <table>
         <thead><tr>
           <th>When</th><th class="num">Distance</th><th class="num">Time</th>
@@ -173,7 +173,7 @@ function render() {
   $("page-label").textContent = `Page ${data.page} of ${data.pages}`;
   $("newer").disabled = data.page <= 1;
   $("older").disabled = data.page >= data.pages;
-  $("summary").textContent = `${fmt.n(data.total)} trips`;
+  $("trips-title").textContent = `All trips · ${fmt.n(data.total)}`;
   $("routes-note").textContent = data.routes_pending
     ? `Downloading routes from Toyota: ${fmt.n(data.routes_pending)} to go. They fill in over the next half hour or so.`
     : "";
@@ -200,6 +200,9 @@ data = lastSeen.get(`api/trips?page=1&per_page=${PER_PAGE}`);
 if (data) render();
 load();
 loadRoutes();
+syncUpdated();
+setInterval(syncUpdated, 60_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) syncUpdated(); });
 </script>
 </body>
 </html>

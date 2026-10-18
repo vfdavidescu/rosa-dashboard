@@ -126,3 +126,15 @@ async function api(path, { method = "GET", body, headers = {}, remember = false 
   if (remember) lastSeen.set(path, data);
   return data;
 }
+
+/* ---------- "Updated … ago" line in every page header ---------- */
+function updatedText(s) {
+  if (s?.fetched_at) return `Updated ${fmt.rel(s.fetched_at)} · every ${s.poll_minutes} min`;
+  return s?.refreshing ? "Fetching from Toyota…" : "No data yet";
+}
+// For pages that don't load /api/state themselves.
+async function syncUpdated() {
+  const cached = lastSeen.get("api/state");
+  if (cached) $("updated").textContent = updatedText(cached);
+  try { $("updated").textContent = updatedText(await api("api/state", { remember: true })); } catch (e) {}
+}
