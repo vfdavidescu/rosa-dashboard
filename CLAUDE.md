@@ -56,7 +56,8 @@ There is no test suite, linter, or build step configured in this repo.
   `guard` answers wrong passwords one per second globally (Docker hides client IPs).
 - `app/maintenance.py` — `MaintenanceStore`, a JSON file in `DATA_DIR`
   (`maintenance.json`): Toyota service records merged by id (never deleted),
-  user-logged tyre rotations, and the tyre and service intervals. Toyota gives no
+  user-logged tyre rotations (add/edit/delete), the service interval, and the fixed tyre
+  rule `TYRE_RULE` (5,000 mi or 6 months, shown as "Due", never changeable). Toyota gives no
   next-service date, so the Service page works it out from the last service record
   (not the `VDE` delivery one) plus the `service_*` settings (default 12 months / 10,000 mi). Distances are stored
   with their own unit and converted only for display.

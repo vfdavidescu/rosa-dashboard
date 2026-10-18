@@ -99,8 +99,8 @@
       </details>
     </article>
 
-    <!-- tyre rotation: tracked here, not by Toyota -->
-    <article class="card span-7">
+    <!-- tyre rotation: tracked here, not by Toyota. Fixed rule: 5,000 miles or 6 months. -->
+    <article class="card span-12">
       <div class="maphead">
         <h2 style="margin:0">Tyre rotation</h2>
         <span class="sub" id="odo-line" style="margin:0"></span>
@@ -108,46 +108,15 @@
       <div id="due"><p class="empty" style="margin:0">Loading…</p></div>
       <div class="bar" id="bar" hidden><div></div></div>
       <div class="bar-legend" id="bar-legend" hidden></div>
-
-      <details class="sec" style="margin-top:16px">
-        <summary>Interval: <span id="interval-text">–</span> · change</summary>
-        <form class="settings-row" id="settings-form">
-          Every
-          <input type="number" id="s-interval" min="1" step="1" required aria-label="Distance interval">
-          <select id="s-unit" aria-label="Unit"><option value="mi">mi</option><option value="km">km</option></select>
-          or
-          <input type="number" id="s-months" min="1" max="60" step="1" required aria-label="Months">
-          months, whichever comes first
-          <button type="submit">Save</button>
-          <span class="form-msg" id="settings-msg"></span>
-        </form>
-      </details>
-    </article>
-
-    <article class="card span-5">
-      <h2>Log a rotation</h2>
-      <form class="form" id="rot-form">
-        <label class="f wide-sm">Date
-          <input type="date" id="f-date" required>
-        </label>
-        <label class="f">Odometer
-          <input type="number" id="f-odo" min="0" step="1" inputmode="numeric" required>
-        </label>
-        <label class="f">Unit
-          <select id="f-unit"><option value="mi">mi</option><option value="km">km</option></select>
-        </label>
-        <label class="f wide">Notes <span style="font-weight:400">(optional)</span>
-          <input type="text" id="f-notes" maxlength="500" placeholder="e.g. front-to-back, at Kwik Fit">
-        </label>
-        <div class="btn-row wide">
-          <button type="submit" class="btn-primary">Log rotation</button>
-          <span class="form-msg" id="rot-msg"></span>
-        </div>
-      </form>
+      <div class="sub" style="margin-top:16px">Due <span id="interval-text">–</span></div>
     </article>
 
     <article class="card span-12">
-      <h2>Rotation history</h2>
+      <div class="maphead">
+        <h2 style="margin:0">Rotation history</h2>
+        <button type="button" class="row-btn" id="rot-add">Add rotation</button>
+      </div>
+      <div class="add-box" id="rot-add-box" hidden></div>
       <ul class="list" id="rotations"></ul>
     </article>
 
@@ -181,11 +150,12 @@ const daysBetween = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a
 
 // One "due" tracker (tyre rotation or service): by distance or by date, whichever comes first.
 // c = { due, bar, legend, intervalText: element ids, interval (in the page's unit), months,
-//       last: { date, odo } | null, noun, lastLabel, empty (html), soonMiles, soonDays? (omit: date never means "soon") }
+//       last: { date, odo } | null, noun, lastLabel, empty (html), soonMiles, soonDays?, dueOnly? }
+// dueOnly (tyres): just "On track" until the distance or the date is reached, then "Due".
 function renderDueCard(c) {
   const u = data.units.distance;
   const odo = data.odometer ? inUnit(data.odometer.value, data.odometer.unit, u) : null;
-  $(c.intervalText).textContent = `every ${fmt.n(c.interval)} ${u} or ${c.months} months`;
+  $(c.intervalText).textContent = `${c.dueOnly ? "after" : "every"} ${fmt.n(c.interval)} ${u} or ${c.months} months`;
   const bar = $(c.bar), legend = $(c.legend);
   if (!c.last) {
     $(c.due).innerHTML = c.empty;
@@ -204,8 +174,8 @@ function renderDueCard(c) {
   const frac = Math.max(distFrac, timeFrac);
   const over = (left != null && left <= 0) || daysLeft <= 0;
   const soonDist = convertDistance(c.soonMiles, "mi", u);   // "due soon" = fewer than this many miles to go
-  const soon = !over && ((left != null && left < soonDist) || (c.soonDays != null && daysLeft <= c.soonDays));
-  const level = over ? "over" : soon ? "soon" : "ok";
+  const soon = !c.dueOnly && !over && ((left != null && left < soonDist) || (c.soonDays != null && daysLeft <= c.soonDays));
+  const level = over ? (c.dueOnly ? "due" : "over") : soon ? "soon" : "ok";
 
   let headline, sub;
   if (over) {
@@ -222,7 +192,7 @@ function renderDueCard(c) {
   const alt = left != null && !over ? `<span class="alt" style="display:block;font-size:13px;margin-top:4px">${fmt.n(convertDistance(left, u, other))} ${other}</span>` : "";
   $(c.due).innerHTML = `
     <div class="due"><div><div class="due-big">${headline}</div>${alt}</div>
-      <span class="chip ${level}">${over ? "Overdue" : soon ? "Due soon" : "On track"}</span></div>
+      <span class="chip ${level}">${over ? (c.dueOnly ? "Due" : "Overdue") : soon ? "Due soon" : "On track"}</span></div>
     <div class="sub" style="margin-top:6px">${esc(sub)}</div>`;
 
   bar.hidden = legend.hidden = false;
@@ -233,14 +203,15 @@ function renderDueCard(c) {
 }
 
 function renderDue() {
-  const u = data.units.distance, s = data.settings, last = data.tyre_rotations[0];
+  if (!data.tyre_rule) return; // saved copy from before this existed; the fresh data is on its way
+  const u = data.units.distance, last = data.tyre_rotations[0];
   renderDueCard({
     due: "due", bar: "bar", legend: "bar-legend", intervalText: "interval-text",
-    interval: inUnit(s.rotation_interval, s.rotation_interval_unit, u), months: s.rotation_months,
+    interval: convertDistance(data.tyre_rule.interval_miles, "mi", u), months: data.tyre_rule.months, dueOnly: true,
     last: last && { date: last.date, odo: inUnit(last.odometer, last.unit, u) },
-    noun: "rotation", lastLabel: "Last", soonMiles: 100,
-    empty: `<p class="note" style="margin:0">No rotations logged yet. Add your most recent one and
-      this card will track when the next is due.</p>`,
+    noun: "rotation", lastLabel: "Last", soonMiles: 0,
+    empty: `<p class="note" style="margin:0">No rotations logged yet. Add your most recent one under Rotation history
+      and this card will track when the next is due.</p>`,
   });
 }
 
@@ -273,17 +244,90 @@ function renderService() {
   });
 }
 
+let addingRotation = false, editingRotation = null, rotationSig = "";
+
+function rotationForm(r, id) {
+  const opt = (v) => `<option value="${v}"${r.unit === v ? " selected" : ""}>${v}</option>`;
+  return `<form class="form rot-form"${id ? ` data-id="${esc(id)}"` : ""}>
+    <label class="f">Date
+      <input type="date" name="date" required max="${esc(data.today)}" value="${esc(r.date)}">
+    </label>
+    <label class="f">Odometer
+      <input type="number" name="odometer" min="0" step="1" inputmode="numeric" required value="${esc(r.odometer)}">
+    </label>
+    <label class="f">Unit
+      <select name="unit">${opt("mi")}${opt("km")}</select>
+    </label>
+    <label class="f wide">Notes <span style="font-weight:400">(optional)</span>
+      <input type="text" name="notes" maxlength="500" placeholder="e.g. front-to-back, at Kwik Fit" value="${esc(r.notes || "")}">
+    </label>
+    <div class="btn-row wide">
+      <button type="submit" class="btn-primary">${id ? "Save changes" : "Add rotation"}</button>
+      <button type="button" class="cancel">Cancel</button>
+      <span class="form-msg"></span>
+    </div>
+  </form>`;
+}
+
+function bindRotationForm(form) {
+  const id = form.dataset.id || null;
+  const msg = form.querySelector(".form-msg");
+  form.querySelector(".cancel").addEventListener("click", () => {
+    addingRotation = false; editingRotation = null; rotationSig = "";
+    renderRotations();
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.className = "form-msg"; msg.textContent = "Saving…";
+    const f = new FormData(form);
+    try {
+      await api(id ? `api/maintenance/tyre-rotations/${encodeURIComponent(id)}` : "api/maintenance/tyre-rotations", {
+        method: id ? "PUT" : "POST",
+        body: { date: f.get("date"), odometer: Number(f.get("odometer")), unit: f.get("unit"), notes: f.get("notes") },
+      });
+      addingRotation = false; editingRotation = null; rotationSig = "";
+      await load();
+    } catch (err) {
+      msg.className = "form-msg bad"; msg.textContent = err.message;
+    }
+  });
+}
+
 function renderRotations() {
+  // Don't rebuild while a form is open and nothing changed: a background reload must not wipe what you're typing.
+  const sig = JSON.stringify([data.tyre_rotations, data.units.distance]);
+  if ((addingRotation || editingRotation) && sig === rotationSig) return;
+  rotationSig = sig;
+
   const u = data.units.distance;
   const units = { distance: u };
-  const items = data.tyre_rotations.map((r) => `
-    <li>
+
+  const box = $("rot-add-box");
+  box.hidden = !addingRotation;
+  box.innerHTML = addingRotation
+    ? rotationForm({ date: data.today, odometer: data.odometer ? Math.round(inUnit(data.odometer.value, data.odometer.unit, u)) : "", unit: u, notes: "" }, null)
+    : "";
+  $("rot-add").hidden = addingRotation;
+
+  const items = data.tyre_rotations.map((r) => r.id === editingRotation
+    ? `<li class="editing">${rotationForm(r, r.id)}</li>`
+    : `<li>
       <div><div class="t">${fmt.date(r.date)}</div>
         <div class="m">${r.notes ? esc(r.notes) : "No notes"}</div></div>
       <div class="r">${inlineDual(inUnit(r.odometer, r.unit, u), "distance", units)}
-        <div style="margin-top:6px"><button type="button" class="del" data-id="${esc(r.id)}" data-date="${esc(r.date)}">Delete</button></div></div>
+        <div class="row-actions">
+          <button type="button" class="row-btn edit" data-id="${esc(r.id)}">Edit</button>
+          <button type="button" class="row-btn del" data-id="${esc(r.id)}" data-date="${esc(r.date)}">Delete</button>
+        </div></div>
     </li>`);
   $("rotations").innerHTML = items.join("") || `<li><span class="empty">Nothing logged yet.</span></li>`;
+
+  document.querySelectorAll(".rot-form").forEach(bindRotationForm);
+  $("rotations").querySelectorAll(".edit").forEach((b) => b.addEventListener("click", () => {
+    editingRotation = b.dataset.id; addingRotation = false; rotationSig = "";
+    renderRotations();
+    document.querySelector(".rot-form input")?.focus();
+  }));
   $("rotations").querySelectorAll(".del").forEach((b) => b.addEventListener("click", async () => {
     if (!confirm(`Delete the rotation from ${fmt.date(b.dataset.date)}?`)) return;
     b.disabled = true;
@@ -321,17 +365,7 @@ function render() {
   renderRotations();
   renderServices();
 
-  // Prefill the forms once.
-  if (!$("f-date").value) $("f-date").value = data.today;
-  $("f-date").max = data.today;
-  if (!$("f-odo").value && data.odometer) $("f-odo").value = Math.round(inUnit(data.odometer.value, data.odometer.unit, u));
-  if (!$("f-unit").dataset.set) { $("f-unit").value = u; $("f-unit").dataset.set = "1"; }
-  if (!$("settings-form").dataset.set) {
-    $("s-interval").value = data.settings.rotation_interval;
-    $("s-unit").value = data.settings.rotation_interval_unit;
-    $("s-months").value = data.settings.rotation_months;
-    $("settings-form").dataset.set = "1";
-  }
+  // Prefill the service interval form once.
   if (!$("svc-settings-form").dataset.set && data.settings.service_interval != null) {
     $("sv-interval").value = data.settings.service_interval;
     $("sv-unit").value = data.settings.service_interval_unit;
@@ -351,23 +385,6 @@ async function load() {
   }
 }
 
-$("rot-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const msg = $("rot-msg");
-  msg.className = "form-msg"; msg.textContent = "Saving…";
-  try {
-    await api("api/maintenance/tyre-rotations", { method: "POST", body: {
-      date: $("f-date").value, odometer: Number($("f-odo").value),
-      unit: $("f-unit").value, notes: $("f-notes").value,
-    } });
-    $("f-notes").value = "";
-    msg.textContent = "Saved.";
-    await load();
-  } catch (err) {
-    msg.className = "form-msg bad"; msg.textContent = err.message;
-  }
-});
-
 $("svc-settings-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = $("svc-settings-msg");
@@ -384,20 +401,10 @@ $("svc-settings-form").addEventListener("submit", async (e) => {
   }
 });
 
-$("settings-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const msg = $("settings-msg");
-  try {
-    data.settings = await api("api/maintenance/settings", { method: "PUT", body: {
-      rotation_interval: Number($("s-interval").value),
-      rotation_interval_unit: $("s-unit").value,
-      rotation_months: Number($("s-months").value),
-    } });
-    msg.className = "form-msg"; msg.textContent = "Saved.";
-    renderDue();
-  } catch (err) {
-    msg.className = "form-msg bad"; msg.textContent = err.message;
-  }
+$("rot-add").addEventListener("click", () => {
+  addingRotation = true; editingRotation = null; rotationSig = "";
+  renderRotations();
+  document.querySelector("#rot-add-box input")?.focus();
 });
 
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { load(); syncUpdated(); } });

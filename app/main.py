@@ -286,6 +286,16 @@ async def add_rotation(body: RotationRequest) -> dict:
     return collector.maintenance.add_rotation(on=body.date, odometer=body.odometer, unit=body.unit, notes=body.notes)
 
 
+@app.put("/api/maintenance/tyre-rotations/{rid}", dependencies=[Depends(guard), Depends(same_site_write)])
+async def edit_rotation(rid: str, body: RotationRequest) -> dict:
+    if body.date > date.today():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That date is in the future")
+    entry = collector.maintenance.update_rotation(rid, on=body.date, odometer=body.odometer, unit=body.unit, notes=body.notes)
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such entry")
+    return entry
+
+
 @app.delete("/api/maintenance/tyre-rotations/{rid}", dependencies=[Depends(guard), Depends(same_site_write)])
 async def delete_rotation(rid: str) -> dict:
     if not collector.maintenance.delete_rotation(rid):
@@ -294,10 +304,7 @@ async def delete_rotation(rid: str) -> dict:
 
 
 class SettingsRequest(BaseModel):
-    """Either group (tyre rotation, service) can be saved on its own; None = leave as is."""
-    rotation_interval: float | None = Field(default=None, gt=0, le=100_000)
-    rotation_interval_unit: str | None = Field(default=None, pattern="^(mi|km)$")
-    rotation_months: int | None = Field(default=None, gt=0, le=60)
+    """Only the service interval can be changed; None = leave as is."""
     service_interval: float | None = Field(default=None, gt=0, le=200_000)
     service_interval_unit: str | None = Field(default=None, pattern="^(mi|km)$")
     service_months: int | None = Field(default=None, gt=0, le=120)

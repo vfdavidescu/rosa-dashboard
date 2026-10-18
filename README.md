@@ -92,9 +92,9 @@ Stored in `maintenance.json` in the data volume:
 
 - **Service history**: every record Toyota has returned, merged on each refresh.
   Records stay even if Toyota later drops them.
-- **Tyre rotations**: logged by you on the page (date, odometer, notes).
-  "Next due" uses whichever comes first: distance (default 5,000 mi) or time
-  (default 6 months), both editable on the page.
+- **Tyre rotations**: added, edited and deleted by you under Rotation history
+  (date, odometer, notes). A rotation is "Due" after 5,000 miles or 6 months,
+  whichever comes first. That rule is fixed.
 
 ## Backup
 
@@ -131,9 +131,10 @@ In Safari, Share → Add to Home Screen. It opens full-screen like an app.
 | GET    | `/api/trips/{id}/route` | One trip's full route |
 | GET    | `/api/backup` | Everything stored, as one JSON download |
 | GET    | `/api/maintenance` | Service history, tyre rotations, interval |
-| POST   | `/api/maintenance/tyre-rotations` | Log a rotation |
+| POST   | `/api/maintenance/tyre-rotations` | Add a rotation |
+| PUT    | `/api/maintenance/tyre-rotations/{id}` | Edit one |
 | DELETE | `/api/maintenance/tyre-rotations/{id}` | Remove one |
-| PUT    | `/api/maintenance/settings` | Rotation interval |
+| PUT    | `/api/maintenance/settings` | Service interval |
 | GET    | `/healthz`     | Liveness                                          |
 
 `/api/state` is handy for other things too (e.g. feeding odometer and fuel into

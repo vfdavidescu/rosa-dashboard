@@ -307,12 +307,13 @@
   .due-big { font: 600 30px/1.1 var(--mono); letter-spacing: -0.02em; }
   .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 14px; }
   .bar div { height: 100%; width: 0; background: var(--ok); border-radius: 99px; transition: width .6s ease; }
-  .bar.soon div { background: var(--warn); } .bar.over div { background: var(--bad); }
+  .bar.soon div, .bar.due div { background: var(--warn); } .bar.over div { background: var(--bad); }
   .bar-legend { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; gap: 8px; }
   .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
   .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
   .chip.soon { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
   .chip.over { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  .chip.due { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
 
   .form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
   .form .wide { grid-column: 1 / -1; }
@@ -336,7 +337,10 @@
   .list .r { text-align: right; font-family: var(--mono); font-size: 14px; white-space: nowrap; }
   .list .r .alt { display: block; font-size: 12px; }
   .code { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 6px; }
-  .del { min-height: 30px; padding: 0 10px; font-size: 12px; color: var(--muted); }
+  .row-btn { min-height: 30px; padding: 0 12px; font-size: 12px; color: var(--muted); }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+  .list li.editing { display: block; }
+  .add-box { padding-bottom: 18px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
   .settings-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
   .settings-row input, .settings-row select { width: 90px; min-height: 34px; padding: 0 8px; font: 14px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
   .settings-row select { width: auto; }

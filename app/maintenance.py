@@ -21,12 +21,10 @@ from typing import Any
 
 log = logging.getLogger("rosa.maintenance")
 
+# Tyre rotation is fixed: due after 5,000 miles or 6 months, whichever comes first.
+TYRE_RULE = {"interval_miles": 5000, "months": 6}
+
 DEFAULT_SETTINGS = {
-    # Toyota's general guidance is roughly every 5,000 miles; months is a fallback
-    # for low-mileage years. Both can be changed from the page.
-    "rotation_interval": 5000,
-    "rotation_interval_unit": "mi",
-    "rotation_months": 6,
     # Toyota doesn't report when the next service is due, so it's worked out from
     # the last one. 12 months or 10,000 miles is the usual UK hybrid schedule.
     "service_interval": 10000,
@@ -69,7 +67,8 @@ class MaintenanceStore:
             return
         self.data["services"] = raw.get("services") or {}
         self.data["tyre_rotations"] = raw.get("tyre_rotations") or []
-        self.data["settings"] = {**DEFAULT_SETTINGS, **(raw.get("settings") or {})}
+        stored = raw.get("settings") or {}
+        self.data["settings"] = {**DEFAULT_SETTINGS, **{k: v for k, v in stored.items() if k in DEFAULT_SETTINGS}}
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,6 +111,15 @@ class MaintenanceStore:
         self._save()
         return entry
 
+    def update_rotation(self, rid: str, *, on: date, odometer: float, unit: str, notes: str = "") -> dict | None:
+        for entry in self.data["tyre_rotations"]:
+            if entry.get("id") == rid:
+                entry.update(date=on.isoformat(), odometer=round(float(odometer), 1), unit=unit,
+                             notes=notes.strip()[:500], edited=_now())
+                self._save()
+                return entry
+        return None
+
     def delete_rotation(self, rid: str) -> bool:
         before = len(self.data["tyre_rotations"])
         self.data["tyre_rotations"] = [r for r in self.data["tyre_rotations"] if r.get("id") != rid]
@@ -133,4 +141,4 @@ class MaintenanceStore:
         ]
         services.sort(key=lambda s: (s.get("date") or "", s.get("mileage") or 0), reverse=True)
         rotations = sorted(self.data["tyre_rotations"], key=lambda r: (r["date"], r["odometer"]), reverse=True)
-        return {"services": services, "tyre_rotations": rotations, "settings": self.data["settings"]}
+        return {"services": services, "tyre_rotations": rotations, "settings": self.data["settings"], "tyre_rule": TYRE_RULE}
