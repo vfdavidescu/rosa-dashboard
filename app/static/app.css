@@ -175,7 +175,7 @@
   .pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; }
 
   /* statistics page */
-  .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; text-align: center; }
   .kpi .l { font-size: 13px; color: var(--muted); }
   .kpi .v { font: 600 34px/1.1 var(--sans); letter-spacing: -0.02em; margin-top: 6px; }
   .kpi .v .unit { font-size: 15px; }
