@@ -46,11 +46,14 @@ There is no test suite, linter, or build step configured in this repo.
 - `app/remote.py` — the fixed allow-list of remote commands (`COMMANDS`), each
   tied to a pytoyoda `extended_capabilities` flag. Never send anything not in
   this list. Remote control is opt-in via `REMOTE_CONTROL=true` and refused
-  unless `DASHBOARD_PASSWORD` is set; the server also requires `X-Rosa-Hold: 3s`
+  unless `DASHBOARD_PASSWORD` is set and 12+ characters (`PASSWORD_OK`); the server also requires `X-Rosa-Hold: 3s`
   (sent by the page after a 3 s button hold) and enforces
   `COMMAND_COOLDOWN_SECONDS` inside `Collector._command_lock`. Commands go
   through `remote._post_once()`, not pytoyoda's request path, because pytoyoda
-  retries 429/5xx and would repeat a command.
+  retries 429/5xx and would repeat a command. Commands also hold `Collector._lock`
+  (one Toyota call at a time), and `remote.OutcomeUnknown` marks "may have
+  reached the car" (dropped connection, 5xx): logged as `unknown`, followed by a refresh.
+  `guard` answers wrong passwords one per second globally (Docker hides client IPs).
 - `app/maintenance.py` — `MaintenanceStore`, a JSON file in `DATA_DIR`
   (`maintenance.json`): Toyota service records merged by id (never deleted),
   user-logged tyre rotations, and the rotation interval. Distances are stored

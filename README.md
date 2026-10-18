@@ -70,11 +70,14 @@ Off by default, because it can unlock the car. To turn it on, set
 
 Safety measures:
 
-- Commands are refused unless `DASHBOARD_PASSWORD` is set.
+- Commands are refused unless `DASHBOARD_PASSWORD` is set and at least 12 characters.
+  Wrong passwords are handled one per second for everyone, so guessing is hopeless.
+- If Toyota doesn't answer cleanly, the page says the car *may* have done it
+  (shown as `?`) instead of failing, and the dashboard refreshes a minute later.
 - Each command is sent to Toyota exactly once (pytoyoda's retries are bypassed).
 - Each button has to be **held for 3 seconds**; letting go early sends nothing.
 - Only commands your car's own capability flags allow are shown or accepted.
-  Engine start, headlights and window-open are never sent.
+  Engine start, headlights, hazards-off and window-open are never sent.
 - One command per `COMMAND_COOLDOWN_SECONDS` (default 15), enforced on the server.
 - Write requests need an `X-Rosa` header, which other websites can't add, so a
   malicious page can't trigger commands through your browser.

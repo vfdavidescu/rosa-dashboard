@@ -41,34 +41,16 @@ code as it is; this file explains how it got here and what's open.
    server-side 15 s cooldown, `X-Rosa` CSRF header, audit log in `command-log.json`.
 7. **File logging** to `./logs/rosa.log` and `./logs/pytoyoda.log`.
 
-## Open issue: Unlock failed
+## Resolved: Unlock
 
-Victor's first real remote command (Unlock) failed. Exact error not yet seen.
+The first Unlock failed with no error captured. Since the commands now go through
+`remote._post_once()` (one request, no pytoyoda retries), Unlock, Lock, horn,
+hazards-on, boot and close-windows all return "Success" from Toyota
+(see `command-log.json`). The cause was never pinned down: likely pytoyoda's own
+request path. The `extendedCapabilities` flags are accurate for this car.
 
-To get it (if not already done):
-
-```bash
-docker compose logs rosa-dash > logs/before-rebuild.txt   # before rebuilding
-docker compose cp rosa-dash:/data/command-log.json logs/
-docker compose up -d --build
-```
-
-Then read `logs/before-rebuild.txt` / `logs/command-log.json`, or retry a
-harmless command and read `logs/rosa.log`. The error message contains Toyota's
-HTTP status and response body.
-
-**Leading hypothesis.** The vehicle profile has two capability sets that disagree:
-
-- `extendedCapabilities` (what `app/remote.py` uses): `doorLockUnlockCapable`,
-  `hazardCapable`, `hornCapable`, `climateCapable`, `trunkLockUnlockCapable`,
-  `powerWindowsCapable` are all **true**.
-- `remoteServiceCapabilities`: `dlockUnlockCapable`, `hazardCapable`,
-  `trunkCapable`, `powerWindowCapable` are all **false**.
-
-If Toyota rejects the command as unsupported, gate buttons on both sets (or on
-whichever proves accurate) and hide what the car can't do. Other possibilities:
-the car must be in a particular state, or the EU backend rejects this command
-(pytoyoda issue #274 lists EU rejections with `CTP-REMOTE-40006`).
+Known EU limitation: Toyota rejects `hazard-off` with `CTP-REMOTE-40006`, so that
+button was removed (hazards-on is kept; the car turns them off itself).
 
 ## Ideas discussed but not built
 

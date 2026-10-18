@@ -168,7 +168,7 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="static/common.js?v=2"></script>
 <script>
-let state = null, period = "week", map = null, marker = null;
+let state = null, period = "week", map = null, marker = null, parkedAt = "";
 
 /* ---------- status ---------- */
 const LOW_FUEL_PCT = 10;
@@ -284,10 +284,11 @@ function renderMap(loc) {
     }).addTo(map);
     const icon = L.divIcon({ className: "", html: '<div class="dot" style="width:18px;height:18px;border:3px solid #fff"></div>', iconSize: [18, 18] });
     marker = L.marker(ll, { icon }).addTo(map);
-  } else {
+  } else if (`${ll}` !== parkedAt) {
     marker.setLatLng(ll);
     map.setView(ll);
   }
+  parkedAt = `${ll}`;
 }
 
 function renderStats(v) {
@@ -338,13 +339,12 @@ const RICONS = {
   "boot-lock": '<path d="M3 13l2-5h14l2 5v5H3z"/><path d="M3 13h18"/><path d="M10 16h4"/>',
   "boot-unlock": '<path d="M3 13l2-5h14l2 5v5H3z"/><path d="M5 8l-1-4h16l-1 4"/>',
   "hazards-on": '<path d="M12 3l9 16H3z"/><path d="M12 9.5l4 7H8z"/>',
-  "hazards-off": '<path d="M12 3l9 16H3z"/>',
   horn: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/>',
   "climate-start": '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/>',
   "climate-stop": '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M3 3l18 18"/>',
   "windows-close": '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 16V9M9 11.5l3-3 3 3"/>',
 };
-let remoteBusy = false, cooldownTimer = null, remoteSig = "";
+let remoteBusy = false, cooldownTimer = null, remoteSig = "", cancelActiveHold = null;
 
 function setHint(text, live = false) {
   $("remote-hint").textContent = text;
@@ -359,7 +359,7 @@ function renderRemote(v) {
   card.hidden = false;
 
   // Only rebuild the buttons when something relevant changed (not on every 60s poll).
-  const sig = JSON.stringify([r.enabled, r.password_set, cmds.map((c) => c.id)]);
+  const sig = JSON.stringify([r.enabled, r.password_ok, cmds.map((c) => c.id)]);
   if (sig !== remoteSig) {
     remoteSig = sig;
     if (!r.enabled) {
@@ -367,9 +367,9 @@ function renderRemote(v) {
         <code>REMOTE_CONTROL=true</code> to <code>.env</code> and restart. Rosa supports:
         ${cmds.map((c) => esc(c.label.toLowerCase())).join(", ")}.</p>`;
       setHint("");
-    } else if (!r.password_set) {
-      $("remote-body").innerHTML = `<p class="note warn" style="margin:0">Remote control needs a password. Set
-        <code>DASHBOARD_PASSWORD</code> in <code>.env</code> and restart.</p>`;
+    } else if (!r.password_ok) {
+      $("remote-body").innerHTML = `<p class="note warn" style="margin:0">Remote control needs a password of at least
+        ${Number(r.min_password) || 12} characters. Set <code>DASHBOARD_PASSWORD</code> in <code>.env</code> and restart.</p>`;
       setHint("");
     } else {
       $("remote-body").innerHTML = GROUPS.map(([g, title]) => {
@@ -391,7 +391,8 @@ function renderLastCommand(last) {
   const el = $("remote-last");
   if (!last) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = `Last: <b class="${last.ok ? "ok" : "bad"}">${last.ok ? "✓" : "✗"} ${esc(last.label)}</b>
+  const mark = last.ok ? "✓" : last.unknown ? "?" : "✗";
+  el.innerHTML = `Last: <b class="${last.ok ? "ok" : "bad"}">${mark} ${esc(last.label)}</b>
     · ${esc(fmt.rel(last.at))} · ${esc(last.message || "")}`;
 }
 
@@ -401,7 +402,7 @@ function holdToConfirm(btn) {
   const label = btn.dataset.label;
 
   const reset = () => {
-    cancelAnimationFrame(raf); active = false;
+    cancelAnimationFrame(raf); active = false; cancelActiveHold = null;
     btn.classList.remove("holding");
     btn.classList.add("releasing");
     btn.style.setProperty("--p", 0);
@@ -412,13 +413,13 @@ function holdToConfirm(btn) {
     const p = Math.min(1, (now - start) / HOLD_MS);
     btn.style.setProperty("--p", p);
     setHint(`Keep holding to ${label.toLowerCase()}… ${Math.ceil((HOLD_MS - (now - start)) / 1000)}`, true);
-    if (p >= 1) { active = false; btn.classList.remove("holding"); fire(btn); return; }
+    if (p >= 1) { active = false; cancelActiveHold = null; btn.classList.remove("holding"); fire(btn); return; }
     raf = requestAnimationFrame(tick);
   };
   const begin = (e) => {
     if (remoteBusy || btn.disabled || active) return;
     e.preventDefault();
-    active = true; start = performance.now();
+    active = true; start = performance.now(); cancelActiveHold = cancel;
     btn.classList.remove("releasing", "done");
     btn.classList.add("holding");
     if (e.pointerId != null) try { btn.setPointerCapture(e.pointerId); } catch (_) {}
@@ -434,11 +435,16 @@ function holdToConfirm(btn) {
   btn.addEventListener("pointerup", cancel);
   btn.addEventListener("pointercancel", cancel);
   btn.addEventListener("lostpointercapture", cancel);
+  btn.addEventListener("blur", cancel);
   btn.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) begin(e); });
   btn.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") cancel(); });
   btn.addEventListener("contextmenu", (e) => e.preventDefault());
   btn.addEventListener("click", (e) => e.preventDefault());
 }
+
+// Leaving the page or app mid-hold must never send.
+document.addEventListener("visibilitychange", () => { if (document.hidden) cancelActiveHold?.(); });
+window.addEventListener("blur", () => cancelActiveHold?.());
 
 function setRemoteDisabled(disabled) {
   document.querySelectorAll(".rbtn").forEach((b) => { b.disabled = disabled; });
@@ -456,6 +462,8 @@ async function fire(btn) {
     if (entry.ok) {
       btn.classList.add("done");
       setHint(`${label}: accepted. The car's status updates in about a minute.`, true);
+    } else if (entry.unknown) {
+      setHint(`${label}: no clear answer, the car may have done it. Check its status before trying again.`, true);
     } else {
       setHint(`${label}: not done (${entry.message})`, true);
     }

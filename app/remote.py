@@ -2,9 +2,9 @@
 
 Only commands listed in COMMANDS can ever be sent, and only when the car's
 own capability flags (from the MyToyota vehicle profile) say it supports
-them. Engine start, headlights, find-vehicle and the window-open commands
-are deliberately left out: either the car reports them unsupported or the
-EU backend rejects them (pytoyoda issue #274).
+them. Engine start, headlights, find-vehicle, hazards-off and the window-open
+commands are deliberately left out: either the car reports them unsupported or
+the EU backend rejects them (CTP-REMOTE-40006; pytoyoda issue #274).
 """
 
 from __future__ import annotations
@@ -14,6 +14,10 @@ from dataclasses import dataclass
 from typing import Any
 
 log = logging.getLogger("rosa.remote")
+
+
+class OutcomeUnknown(Exception):
+    """The command may have reached the car even though we got no clean answer."""
 
 
 @dataclass(frozen=True)
@@ -33,7 +37,6 @@ COMMANDS: tuple[Command, ...] = (
     Command("boot-lock", "Lock boot", "security", "trunk_lock_unlock_capable", "command", "trunk-lock"),
     Command("boot-unlock", "Unlock boot", "security", "trunk_lock_unlock_capable", "command", "trunk-unlock", caution=True),
     Command("hazards-on", "Hazards on", "signals", "hazard_capable", "command", "hazard-on"),
-    Command("hazards-off", "Hazards off", "signals", "hazard_capable", "command", "hazard-off"),
     Command("horn", "Sound horn", "signals", "horn_capable", "command", "sound-horn"),
     Command("climate-start", "Start climate", "comfort", "climate_capable", "climate", "start"),
     Command("climate-stop", "Stop climate", "comfort", "climate_capable", "climate", "stop"),
@@ -85,12 +88,20 @@ async def _post_once(vehicle: Any, endpoint: str, body: dict) -> dict:
         await ctl._update_token()
     if ctl._client is None:
         ctl._client = httpx.AsyncClient(timeout=ctl._timeout, verify=await ctl._get_ssl_context())
-    resp = await ctl._client.request(
-        "POST", f"{ctl._api_base_url}{endpoint}",
-        headers=ctl._prepare_headers(vehicle.vin), json=body, follow_redirects=True,
-    )
+    try:
+        resp = await ctl._client.request(
+            "POST", f"{ctl._api_base_url}{endpoint}",
+            headers=ctl._prepare_headers(vehicle.vin), json=body, follow_redirects=True,
+        )
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        raise  # never connected: nothing was sent
+    except httpx.TransportError as exc:
+        raise OutcomeUnknown(f"No answer from Toyota ({type(exc).__name__})") from exc
+    if resp.status_code >= 500:
+        raise OutcomeUnknown(f"Toyota answered {resp.status_code}: {resp.text[:200]}")
     if resp.status_code not in (200, 202):
         raise RuntimeError(f"Toyota answered {resp.status_code}: {resp.text[:300]}")
+    log.info("Toyota replied %s: %s", resp.status_code, resp.text[:500])
     return resp.json() if resp.content else {}
 
 
@@ -117,4 +128,7 @@ async def execute(vehicle: Any, cmd: Command) -> tuple[bool, str]:
 
     body = RemoteCommandModel(beep_count=0, command=CommandType(cmd.action)).model_dump(exclude_unset=True, by_alias=True)
     result = StatusModel(**await _post_once(vehicle, VEHICLE_COMMAND_ENDPOINT, body))
+    # Toyota's reply for ordinary commands isn't documented: only explicit errors count as refusal.
+    if result.errors:
+        return False, f"Toyota refused it: {str(result.errors[0])[:200]}"
     return True, _describe_status(result)

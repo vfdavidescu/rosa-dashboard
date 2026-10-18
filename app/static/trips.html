@@ -192,9 +192,13 @@ function render() {
   $("info").classList.toggle("show", !!data.mock);
 }
 
+let loadSeq = 0;
 async function load(p = page) {
+  const seq = ++loadSeq;
   try {
-    data = await api(`api/trips?page=${p}&per_page=${PER_PAGE}`, { remember: p === 1 });
+    const fresh = await api(`api/trips?page=${p}&per_page=${PER_PAGE}`, { remember: p === 1 });
+    if (seq !== loadSeq) return; // you clicked on to another page meanwhile
+    data = fresh;
     page = data.page;
     $("error").classList.remove("show");
     render();

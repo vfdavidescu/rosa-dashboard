@@ -464,18 +464,25 @@ class Collector:
             if wait:
                 raise CommandCooldown(wait)
             started = datetime.now(timezone.utc)
+            unknown = False
             try:
                 if self.mock:
                     await asyncio.sleep(1.2)
                     ok, message = True, "accepted (mock, nothing was sent)"
                 else:
-                    if not self._cars:
-                        client = await self._client_instance()
-                        self._cars = [c for c in await client.get_vehicles() if c is not None]
-                    if not self._cars:
-                        raise RuntimeError("no vehicle on this account")
-                    await self._client_instance()  # make sure the token is fresh
-                    ok, message = await remote.execute(self._cars[0], cmd)
+                    # Same lock as refresh: one Toyota call at a time, and no clash over the login token.
+                    async with self._lock:
+                        if not self._cars:
+                            client = await self._client_instance()
+                            self._cars = [c for c in await client.get_vehicles() if c is not None]
+                        if not self._cars:
+                            raise RuntimeError("no vehicle on this account")
+                        await self._client_instance()  # make sure the token is fresh
+                        ok, message = await remote.execute(self._cars[0], cmd)
+            except remote.OutcomeUnknown as exc:
+                log.warning("command %s: outcome unknown: %s", cmd_id, exc)
+                ok, unknown = False, True
+                message = f"{exc}. The car may still have received it: check its status."
             except Exception as exc:  # noqa: BLE001
                 log.warning("command %s failed: %s", cmd_id, exc)
                 ok, message = False, f"{type(exc).__name__}: {exc}"
@@ -484,6 +491,7 @@ class Collector:
                 "command": cmd.id,
                 "label": cmd.label,
                 "ok": ok,
+                "unknown": unknown,
                 "message": message,
                 "from": client_ip,
             }
@@ -491,7 +499,7 @@ class Collector:
             self._last_command_done = time.monotonic()
             log.info("command %s -> %s (%s)", cmd.id, "ok" if ok else "failed", message)
 
-        if ok and not self.mock:
+        if (ok or unknown) and not self.mock:
             self._schedule_followup()
         return entry
 

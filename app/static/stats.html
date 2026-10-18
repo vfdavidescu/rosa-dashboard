@@ -220,9 +220,13 @@ function render() {
     </tr>`).join("") || `<tr><td colspan="5" class="empty">No trips stored yet.</td></tr>`;
 }
 
+let loadSeq = 0;
 async function load() {
+  const seq = ++loadSeq;
   try {
-    data = await api(`api/stats?period=${period}`, { remember: true });
+    const fresh = await api(`api/stats?period=${period}`, { remember: true });
+    if (seq !== loadSeq) return; // a newer request (e.g. you switched period) is on its way
+    data = fresh;
     $("error").classList.remove("show");
     render();
   } catch (err) {

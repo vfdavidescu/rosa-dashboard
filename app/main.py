@@ -27,6 +27,8 @@ logsetup.setup()
 MANUAL_REFRESH_COOLDOWN_S = int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "300"))
 COMMAND_COOLDOWN_S = int(os.environ.get("COMMAND_COOLDOWN_SECONDS", "15"))
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+MIN_REMOTE_PASSWORD = 12  # remote control is refused below this length
+PASSWORD_OK = len(DASHBOARD_PASSWORD) >= MIN_REMOTE_PASSWORD
 STATIC = Path(__file__).parent / "static"
 
 collector = Collector()
@@ -51,20 +53,47 @@ async def revalidate(request: Request, call_next):
     lifetime and can pair a new page with an old common.js."""
     response = await call_next(request)
     response.headers.setdefault("Cache-Control", "no-cache")
+    # Stop other sites embedding the dashboard (a hidden "press and hold" trick).
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
     return response
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 security = HTTPBasic(auto_error=False)
 
 
-def guard(creds: HTTPBasicCredentials | None = Depends(security)) -> None:
-    """Optional HTTP basic auth: on only when DASHBOARD_PASSWORD is set."""
+_guess_lock = asyncio.Lock()
+_guesses_waiting = 0
+MAX_WAITING_GUESSES = 20
+
+
+async def guard(creds: HTTPBasicCredentials | None = Depends(security)) -> None:
+    """Optional HTTP basic auth: on only when DASHBOARD_PASSWORD is set.
+
+    The right password is accepted at once. Wrong ones are handled one per second
+    for everyone together (Docker hides each client's address, so this can't be
+    per-client), which makes guessing hopeless while never locking the owner out.
+    """
+    global _guesses_waiting
     if not DASHBOARD_PASSWORD:
         return
-    if creds is None or not secrets.compare_digest(creds.password.encode(), DASHBOARD_PASSWORD.encode()):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": 'Basic realm="rosa"'},
-        )
+    if creds is not None and secrets.compare_digest(creds.password.encode(), DASHBOARD_PASSWORD.encode()):
+        return
+    headers = {"WWW-Authenticate": 'Basic realm="rosa"'}
+    if creds is None:
+        # The browser's first request, before it asks for a password: not a guess.
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, headers=headers)
+    if _guesses_waiting >= MAX_WAITING_GUESSES:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts", headers={"Retry-After": "30"})
+    _guesses_waiting += 1
+    try:
+        async with _guess_lock:
+            await asyncio.sleep(1)
+    finally:
+        _guesses_waiting -= 1
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, headers=headers)
 
 
 def same_site_write(x_rosa: str | None = Header(default=None)) -> None:
@@ -115,6 +144,8 @@ async def state() -> dict:
         "remote": {
             "enabled": collector.remote_enabled,
             "password_set": bool(DASHBOARD_PASSWORD),
+            "password_ok": PASSWORD_OK,
+            "min_password": MIN_REMOTE_PASSWORD,
             "last_command": collector.last_command,
             "cooldown_seconds": COMMAND_COOLDOWN_S,
         },
@@ -162,8 +193,11 @@ class CommandRequest(BaseModel):
 async def command(body: CommandRequest, request: Request, x_rosa_hold: str | None = Header(default=None)) -> dict:
     if not collector.remote_enabled:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Remote control is turned off (REMOTE_CONTROL=true enables it)")
-    if not DASHBOARD_PASSWORD:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Set DASHBOARD_PASSWORD to use remote control")
+    if not PASSWORD_OK:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Remote control needs a DASHBOARD_PASSWORD of at least {MIN_REMOTE_PASSWORD} characters",
+        )
     # The page only sends this after the button has been held for 3 seconds.
     if x_rosa_hold != "3s":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Hold the button to confirm")

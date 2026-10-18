@@ -70,7 +70,6 @@ def mock_snapshot(use_metric: bool) -> dict:
             {"id": "boot-lock", "label": "Lock boot", "group": "security", "caution": False},
             {"id": "boot-unlock", "label": "Unlock boot", "group": "security", "caution": True},
             {"id": "hazards-on", "label": "Hazards on", "group": "signals", "caution": False},
-            {"id": "hazards-off", "label": "Hazards off", "group": "signals", "caution": False},
             {"id": "horn", "label": "Sound horn", "group": "signals", "caution": False},
             {"id": "climate-start", "label": "Start climate", "group": "comfort", "caution": False},
             {"id": "climate-stop", "label": "Stop climate", "group": "comfort", "caution": False},
