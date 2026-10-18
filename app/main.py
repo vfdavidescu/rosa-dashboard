@@ -42,6 +42,15 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Rosa Dash", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+@app.middleware("http")
+async def revalidate(request: Request, call_next):
+    """Pages and scripts must always match: without this, browsers guess a cache
+    lifetime and can pair a new page with an old common.js."""
+    response = await call_next(request)
+    response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 security = HTTPBasic(auto_error=False)
 

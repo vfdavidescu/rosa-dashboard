@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="static/app.css">
+<link rel="stylesheet" href="static/app.css?v=2">
 </head>
 <body>
 <main>
@@ -91,7 +91,7 @@
   </section>
 </main>
 
-<script src="static/common.js"></script>
+<script src="static/common.js?v=2"></script>
 <script>
 const SHOWN = 12; // periods in each chart
 const SVG = "http://www.w3.org/2000/svg";
@@ -162,8 +162,8 @@ function columnChart(host, items, value, describe) {
     hit.addEventListener("pointerleave", () => { tip.hidden = true; });
     hit.addEventListener("blur", () => { tip.hidden = true; });
 
-    // Label every other period when space is tight.
-    const every = slot < 34 ? 2 : 1;
+    // Skip labels so each has ~48px (a "27 Jul" label is about 40px wide).
+    const every = Math.ceil(48 / slot);
     if ((items.length - 1 - i) % every === 0) {
       el("text", { class: "tick", x: x + bw / 2, y: H - 8, "text-anchor": "middle" }, svg).textContent = label(p.start);
     }
