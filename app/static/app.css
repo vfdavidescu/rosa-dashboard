@@ -24,6 +24,12 @@
     color-scheme: dark;
   }
 
+  /* Page changes: keep the old page up until the new one paints, then cross-fade. */
+  @view-transition { navigation: auto; }
+  header { view-transition-name: header; }
+  .tabs { view-transition-name: tabs; }
+  @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }

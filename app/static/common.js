@@ -98,8 +98,15 @@ function inlineDual(value, kind, units, digits = 0) {
 }
 
 /* ---------- API ---------- */
+// The last response for a page's main GET, kept for this tab so switching pages
+// draws straight away while the fresh data loads.
+const lastSeen = {
+  get(path) { try { return JSON.parse(sessionStorage.getItem("rosa:" + path)); } catch (e) { return null; } },
+  set(path, data) { try { sessionStorage.setItem("rosa:" + path, JSON.stringify(data)); } catch (e) {} },
+};
+
 // Every write carries X-Rosa: 1 (the server rejects writes without it; see main.py).
-async function api(path, { method = "GET", body, headers = {} } = {}) {
+async function api(path, { method = "GET", body, headers = {}, remember = false } = {}) {
   const opts = { method, cache: "no-store", headers: { ...headers } };
   if (method !== "GET") opts.headers["X-Rosa"] = "1";
   if (body !== undefined) {
@@ -116,5 +123,6 @@ async function api(path, { method = "GET", body, headers = {} } = {}) {
     err.status = r.status;
     throw err;
   }
+  if (remember) lastSeen.set(path, data);
   return data;
 }

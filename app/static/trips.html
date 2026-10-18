@@ -183,7 +183,7 @@ function render() {
 
 async function load(p = page) {
   try {
-    data = await api(`api/trips?page=${p}&per_page=${PER_PAGE}`);
+    data = await api(`api/trips?page=${p}&per_page=${PER_PAGE}`, { remember: p === 1 });
     page = data.page;
     $("error").classList.remove("show");
     render();
@@ -196,6 +196,8 @@ async function load(p = page) {
 $("newer").addEventListener("click", () => load(page - 1));
 $("older").addEventListener("click", () => load(page + 1));
 
+data = lastSeen.get(`api/trips?page=1&per_page=${PER_PAGE}`);
+if (data) render();
 load();
 loadRoutes();
 </script>

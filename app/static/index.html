@@ -502,10 +502,12 @@ function render() {
 
 async function load() {
   try {
-    state = await api("api/state");
+    state = await api("api/state", { remember: true });
     render();
   } catch (e) { /* offline: keep what's on screen */ }
 }
+state = lastSeen.get("api/state");
+if (state) render();
 
 const mobile = window.matchMedia("(max-width: 600px)");
 function setRefreshLabel(text) {

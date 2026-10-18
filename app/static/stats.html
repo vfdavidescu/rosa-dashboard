@@ -212,7 +212,7 @@ function render() {
 
 async function load() {
   try {
-    data = await api(`api/stats?period=${period}`);
+    data = await api(`api/stats?period=${period}`, { remember: true });
     $("error").classList.remove("show");
     render();
   } catch (err) {
@@ -234,6 +234,8 @@ document.querySelectorAll(".seg button").forEach((btn) =>
 let resizeTimer = null;
 window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => data && render(), 150); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+data = lastSeen.get(`api/stats?period=${period}`);
+if (data) render();
 load();
 </script>
 </body>
