@@ -84,24 +84,7 @@
       <div class="remote-last" id="remote-last" hidden></div>
     </article>
 
-    <article class="card span-5">
-      <h2>Fuel</h2>
-      <div class="gauge">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="12"
-                  stroke-dasharray="235.6 314.2" transform="rotate(135 60 60)" stroke-linecap="round"/>
-          <circle class="fill" id="gaugefill" cx="60" cy="60" r="50" fill="none" stroke-width="12"
-                  stroke-dasharray="235.6 314.2" stroke-dashoffset="235.6" transform="rotate(135 60 60)" stroke-linecap="round"/>
-          <text x="60" y="66" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="22" font-weight="600" fill="currentColor" id="fuelpct">–</text>
-        </svg>
-        <div>
-          <div id="range"><div class="big">–</div></div>
-          <div class="sub">estimated range</div>
-        </div>
-      </div>
-    </article>
-
-    <article class="card span-7">
+    <article class="card span-12">
       <h2>Doors &amp; windows</h2>
       <div class="lockwrap">
         <svg viewBox="0 0 100 190" aria-hidden="true">
@@ -249,15 +232,15 @@ function renderHero(v) {
 
   const d = v.dashboard || {};
   $("hs-odo").innerHTML = bigDual(d.odometer, "distance", v.units, "v");
-  $("hs-fuel").textContent = d.fuel_level == null ? "–" : `${d.fuel_level}%`;
   $("hs-range").innerHTML = bigDual(d.total_range ?? d.fuel_range, "distance", v.units, "v");
+
+  const pct = d.fuel_level;
+  $("hs-fuel").textContent = pct == null ? "–" : `${pct}%`;
+  $("hs-fuel").classList.remove("lvl-bad", "lvl-warn", "lvl-ok");
+  if (pct != null) $("hs-fuel").classList.add(pct < 10 ? "lvl-bad" : pct < 25 ? "lvl-warn" : "lvl-ok");
 }
 
-function renderFuel(d, units) {
-  const pct = d.fuel_level;
-  $("fuelpct").textContent = pct == null ? "–" : `${pct}%`;
-  $("gaugefill").style.strokeDashoffset = 235.6 * (1 - (pct ?? 0) / 100);
-  $("range").innerHTML = bigDual(d.total_range ?? d.fuel_range, "distance", units);
+function renderWarnings(d) {
   const w = d.warning_lights || [];
   $("warnings").textContent = w.length ? w.join(", ") : "None reported";
   $("warnings").className = w.length ? "" : "empty";
@@ -502,7 +485,7 @@ function render() {
   $("name").textContent = v.alias || "My Toyota";
   renderHero(v);
   renderRemote(v);
-  renderFuel(v.dashboard || {}, v.units);
+  renderWarnings(v.dashboard || {});
   renderLocks(v.locks || {});
   renderMap(v.location || {});
   renderStats(v);

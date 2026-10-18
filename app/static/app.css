@@ -103,17 +103,13 @@
   .status-pill .ic svg { width: 14px; height: 14px; stroke: var(--panel); }
   .status-detail { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
 
-  .hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+  .hero-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; text-align: center;
     margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
   .hero-stats .v { font: 600 22px/1.1 var(--mono); letter-spacing: -0.02em; white-space: nowrap; }
   .hero-stats .unit { font-size: 13px; }
   .hero-stats .v + .alt { font-size: 12px; margin-top: 3px; }
   .hero-stats .l { font-size: 12px; color: var(--muted); margin-top: 3px; }
-
-  /* fuel gauge */
-  .gauge { display: flex; align-items: center; gap: 18px; }
-  .gauge svg { width: 120px; height: 120px; flex: none; }
-  .track { stroke: var(--line); } .fill { stroke: var(--accent); transition: stroke-dashoffset .8s ease; }
+  #hs-fuel.lvl-bad { color: var(--bad); } #hs-fuel.lvl-warn { color: var(--warn); } #hs-fuel.lvl-ok { color: var(--ok); }
 
   /* locks */
   .lockwrap { display: flex; gap: 18px; align-items: center; }
@@ -175,8 +171,6 @@
     .hero-stats .unit { font-size: 12px; margin-left: 2px; }
     .span-6 { grid-column: span 12; }
     .big { font-size: 34px; }
-    .gauge { gap: 14px; }
-    .gauge svg { width: 104px; height: 104px; }
     .lockwrap svg { width: 76px; }
     .status { font-size: 18px; }
     #map { height: 220px; }
@@ -206,7 +200,6 @@
   }
   @media (max-width: 360px) {
     .big { font-size: 30px; }
-    .gauge svg { width: 92px; height: 92px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
