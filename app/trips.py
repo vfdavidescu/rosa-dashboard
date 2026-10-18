@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 log = logging.getLogger("rosa.trips")
@@ -128,6 +129,48 @@ class TripStore:
             "pages": pages,
             "routes_pending": len(self.missing_routes()),
         }
+
+    def stats(self, period: str, metric: bool) -> dict:
+        """Totals per week (Monday start) or calendar month, newest first, no gaps."""
+        def bucket(d: date) -> date:
+            return d - timedelta(days=d.weekday()) if period == "week" else d.replace(day=1)
+
+        def step_back(d: date) -> date:
+            return d - timedelta(days=7) if period == "week" else (d - timedelta(days=1)).replace(day=1)
+
+        totals: dict[date, dict] = {}
+        first: date | None = None
+        for t in self.trips.values():
+            try:
+                day = datetime.fromisoformat(t["start"]).astimezone().date()  # local (TZ) date
+            except (KeyError, TypeError, ValueError):
+                continue
+            first = day if first is None or day < first else first
+            b = totals.setdefault(bucket(day), {"trips": 0, "km": 0.0, "ev_km": 0.0, "litres": 0.0})
+            km = t.get("distance_km") or 0.0
+            b["trips"] += 1
+            b["km"] += km
+            b["ev_km"] += t.get("ev_distance_km") or 0.0
+            b["litres"] += km * (t.get("avg_consumption") or 0.0) / 100
+
+        current = bucket(date.today())
+        periods = []
+        if first is not None:
+            start, d = bucket(first), current
+            while d >= start:
+                b = totals.get(d, {"trips": 0, "km": 0.0, "ev_km": 0.0, "litres": 0.0})
+                l100 = b["litres"] / b["km"] * 100 if b["km"] and b["litres"] else None
+                periods.append({
+                    "start": d.isoformat(),
+                    "current": d == current,
+                    "trips": b["trips"],
+                    "distance": round(b["km"] if metric else b["km"] / KM_PER_MI, 1),
+                    "ev_distance": round(b["ev_km"] if metric else b["ev_km"] / KM_PER_MI, 1),
+                    "fuel_litres": round(b["litres"], 1),
+                    "avg_consumption": None if l100 is None else round(l100 if metric else MPG_UK_L100 / l100, 1),
+                })
+                d = step_back(d)
+        return {"period": period, "since": first.isoformat() if first else None, "periods": periods}
 
     @staticmethod
     def _display(t: dict, metric: bool) -> dict:

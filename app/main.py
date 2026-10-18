@@ -85,6 +85,10 @@ async def trips_page() -> FileResponse:
     return FileResponse(STATIC / "trips.html")
 
 
+@app.get("/stats", dependencies=[Depends(guard)])
+async def stats_page() -> FileResponse:
+    return FileResponse(STATIC / "stats.html")
+
 
 # -- live data ------------------------------------------------------------------------------
 @app.get("/api/state", dependencies=[Depends(guard)])
@@ -160,6 +164,16 @@ async def trips(page: int = Query(1, ge=1), per_page: int = Query(20, ge=1, le=1
     metric = collector.use_metric
     return {
         **collector.trips.page(page, per_page, metric),
+        "units": {"distance": "km" if metric else "mi", "consumption": "L/100km" if metric else "mpg"},
+        "mock": collector.mock,
+    }
+
+
+@app.get("/api/stats", dependencies=[Depends(guard)])
+async def stats(period: str = Query("week", pattern="^(week|month)$")) -> dict:
+    metric = collector.use_metric
+    return {
+        **collector.trips.stats(period, metric),
         "units": {"distance": "km" if metric else "mi", "consumption": "L/100km" if metric else "mpg"},
         "mock": collector.mock,
     }

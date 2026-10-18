@@ -24,6 +24,8 @@ change their API at any time.
 - **Trips** page (`/trips`): every trip, paged, saved locally so history
   outlives Toyota's 12 months. A map of every road driven; click a trip for its
   route. Routes download gradually (one API call each) after the first start.
+- **Statistics** page (`/stats`): litres of petrol and distance per week or
+  month, with charts and a table of every period.
 - Odometer, last service, warning lights
 - **Remote control** (opt-in): lock/unlock, boot, hazards, horn, climate,
   close windows, but only the ones your car reports it supports
@@ -122,6 +124,7 @@ In Safari, Share → Add to Home Screen. It opens full-screen like an app.
 | POST   | `/api/command` | Remote command (needs `REMOTE_CONTROL=true`, `X-Rosa: 1` and `X-Rosa-Hold: 3s`) |
 | GET    | `/api/trips?page=&per_page=` | Stored trips, newest first |
 | GET    | `/api/trips/routes` | Every stored route, simplified |
+| GET    | `/api/stats?period=week\|month` | Petrol and distance totals per period |
 | GET    | `/api/trips/{id}/route` | One trip's full route |
 | GET    | `/api/maintenance` | Service history, tyre rotations, interval |
 | POST   | `/api/maintenance/tyre-rotations` | Log a rotation |
@@ -158,6 +161,7 @@ app/
   static/
     index.html    dashboard page
     trips.html    Trips page
+    stats.html    Statistics page
     service.html  Service & Maintenance page
     app.css       shared styles
     common.js     shared JS: theme, formatting, units, API helper
