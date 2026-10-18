@@ -72,7 +72,7 @@ There is no test suite, linter, or build step configured in this repo.
   constraints baked into its design (see its module docstring):
   - One `MyT` client instance lives for the whole process so pytoyoda's cached
     token/refresh flow means login happens once, not every poll.
-  - Per-vehicle API calls (`get_recent_trips`, week/month summaries, etc.) are made
+  - Per-vehicle API calls (week/month summaries, trip pages, route details) are made
     **sequentially with a 1s sleep between them**, never gathered concurrently —
     Toyota's gateway returns HTTP 429 on bursts. Preserve this when touching
     `vehicle_snapshot()`.
@@ -105,7 +105,7 @@ There is no test suite, linter, or build step configured in this repo.
 
 - Snapshot shape is the contract between `collector.py`, `mock.py`, and
   `index.html`. Changes to one of the nested dicts (`dashboard`, `location`,
-  `locks`, `service`, `trips`, `summaries`, `model`, `remote_commands`) need
+  `locks`, `service`, `summaries`, `model`, `remote_commands`) need
   matching changes in the other two places. `_service_records` is popped by the
   collector before saving; it never reaches the page.
 - Units: `USE_METRIC` picks the primary unit (km/L-100km vs mi/mpg) and pytoyoda

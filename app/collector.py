@@ -86,20 +86,6 @@ def _window(window: Any) -> dict | None:
     return {"closed": _get(lambda: window.closed)}
 
 
-def _trip(trip: Any, use_metric: bool) -> dict:
-    return {
-        "start": _iso(_get(lambda: trip.start_time)),
-        "end": _iso(_get(lambda: trip.end_time)),
-        "duration_min": _minutes(_get(lambda: trip.duration)),
-        "distance": _round(_get(lambda: trip.distance)),
-        "ev_distance": _round(_get(lambda: trip.ev_distance)),
-        "avg_consumption": _uk_mpg(_get(lambda: trip.average_fuel_consumed), use_metric),
-        "score": _get(lambda: trip.score),
-        "from": _get(lambda: trip.locations.start.model_dump()),
-        "to": _get(lambda: trip.locations.end.model_dump()),
-    }
-
-
 def _summary(summary: Any, use_metric: bool) -> dict | None:
     if summary is None:
         return None
@@ -173,7 +159,6 @@ async def vehicle_snapshot(vehicle: Any, use_metric: bool) -> dict:
         await asyncio.sleep(1)
         return result
 
-    trips = await call(lambda: vehicle.get_recent_trips(limit=10), [])
     week = await call(vehicle.get_current_week_summary)
     month = await call(vehicle.get_current_month_summary)
 
@@ -237,7 +222,6 @@ async def vehicle_snapshot(vehicle: Any, use_metric: bool) -> dict:
             "category": _get(lambda: service.service_category),
             "provider": _get(lambda: service.service_provider),
         },
-        "trips": [_trip(t, use_metric) for t in trips or []],
         "summaries": {"week": _summary(week, use_metric), "month": _summary(month, use_metric)},
     }
 

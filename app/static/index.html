@@ -137,20 +137,6 @@
       <div class="evlabel" id="evlabel">EV share</div>
     </article>
 
-    <article class="card span-12">
-      <div class="maphead">
-        <h2 style="margin:0">Recent trips</h2>
-        <a href="trips">All trips →</a>
-      </div>
-      <table>
-        <thead><tr>
-          <th>When</th><th class="num">Distance</th><th class="num">Time</th>
-          <th class="num">EV</th><th class="num">Consumption</th><th class="num">Score</th>
-        </tr></thead>
-        <tbody id="trips"></tbody>
-      </table>
-    </article>
-
     <article class="card span-6">
       <h2>Last service</h2>
       <div id="service" class="empty">No service records</div>
@@ -301,22 +287,6 @@ function renderStats(v) {
   const ev = s && s.distance && s.ev_distance != null ? Math.round((s.ev_distance / s.distance) * 100) : null;
   $("evbar").style.width = `${ev ?? 0}%`;
   $("evlabel").textContent = ev == null ? "EV share –" : `${ev}% of distance driven on electric`;
-}
-
-function renderTrips(v) {
-  const u = v.units;
-  const rows = (v.trips || []).map((t) => {
-    const ev = t.distance ? Math.round((t.ev_distance || 0) / t.distance * 100) : null;
-    return `<tr>
-      <td class="t-when">${fmt.when(t.start)}</td>
-      <td class="num t-dist" data-label="Distance">${inlineDual(t.distance, "distance", u, 1)}</td>
-      <td class="num t-time" data-label="Time">${fmt.dur(t.duration_min)}</td>
-      <td class="num t-ev" data-label="EV">${ev == null ? "–" : ev + "%"}</td>
-      <td class="num t-cons" data-label="Economy">${inlineDual(t.avg_consumption, "consumption", u)}</td>
-      <td class="num t-score"><span class="score">${t.score ? fmt.n(t.score) : "–"}</span></td>
-    </tr>`;
-  });
-  $("trips").innerHTML = rows.join("") || `<tr><td colspan="6" class="empty">No trips in the last 90 days</td></tr>`;
 }
 
 const SERVICE_LABELS = { MNT: "Maintenance service", HSC: "Hybrid service check", VDE: "Vehicle delivery" };
@@ -506,7 +476,6 @@ function render() {
   renderLocks(v.locks || {});
   renderMap(v.location || {});
   renderStats(v);
-  renderTrips(v);
   renderService(v.service, v.units);
   $("footer").textContent = v.vin ? `VIN ${v.vin}` : "";
 }

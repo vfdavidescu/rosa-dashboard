@@ -38,25 +38,6 @@ def mock_snapshot(use_metric: bool) -> dict:
     now = datetime.now(timezone.utc)
     k = 1.609 if use_metric else 1.0
     closed_locked = {"closed": True, "locked": True}
-    trips = []
-    t = now - timedelta(hours=3)
-    for i, (dist, mins, score) in enumerate(
-        [(14.2, 28, 82), (61.5, 74, 76), (3.1, 9, 91), (14.0, 31, 79), (8.7, 18, 85)]
-    ):
-        trips.append(
-            {
-                "start": (t - timedelta(minutes=mins)).isoformat(),
-                "end": t.isoformat(),
-                "duration_min": mins,
-                "distance": round(dist * k, 1),
-                "ev_distance": round(dist * k * 0.48, 1),
-                "avg_consumption": 4.3 if use_metric else 65.7,
-                "score": score,
-                "from": {"lat": 52.2053 + i * 0.004, "lon": 0.1218},
-                "to": {"lat": 52.1951, "lon": 0.1313 - i * 0.003},
-            }
-        )
-        t -= timedelta(hours=7 + i * 5)
     return {
         "vin": "MOCKVIN0000000000",
         "alias": "Rosa",
@@ -121,7 +102,6 @@ def mock_snapshot(use_metric: bool) -> dict:
             "category": "Annual service",
             "provider": "Dealer",
         },
-        "trips": trips,
         "summaries": {
             "week": {
                 "from": (now - timedelta(days=now.weekday())).date().isoformat(),

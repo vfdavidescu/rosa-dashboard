@@ -20,7 +20,6 @@ change their API at any time.
 - Doors, windows, bonnet and boot (closed / locked)
 - Where the car was last parked (OpenStreetMap)
 - This week's and this month's distance, consumption, hybrid score, EV share
-- The last 10 trips
 - **Trips** page (`/trips`): every trip, paged, saved locally so history
   outlives Toyota's 12 months. A map of every road driven; click a trip for its
   route. Routes download gradually (one API call each) after the first start.
