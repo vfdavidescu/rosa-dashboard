@@ -65,6 +65,8 @@ Off by default, because it can unlock the car. To turn it on, set
 
 Safety measures:
 
+- Commands are refused unless `DASHBOARD_PASSWORD` is set.
+- Each command is sent to Toyota exactly once (pytoyoda's retries are bypassed).
 - Each button has to be **held for 3 seconds**; letting go early sends nothing.
 - Only commands your car's own capability flags allow are shown or accepted.
   Engine start, headlights and window-open are never sent.

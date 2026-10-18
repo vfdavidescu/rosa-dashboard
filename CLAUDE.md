@@ -43,9 +43,12 @@ There is no test suite, linter, or build step configured in this repo.
   `X-Rosa: 1` header, a CSRF guard); keep that on any new write route.
 - `app/remote.py` — the fixed allow-list of remote commands (`COMMANDS`), each
   tied to a pytoyoda `extended_capabilities` flag. Never send anything not in
-  this list. Remote control is opt-in via `REMOTE_CONTROL=true`; the server also
-  requires `X-Rosa-Hold: 3s` (sent by the page after a 3 s button hold) and
-  enforces `COMMAND_COOLDOWN_SECONDS` inside `Collector._command_lock`.
+  this list. Remote control is opt-in via `REMOTE_CONTROL=true` and refused
+  unless `DASHBOARD_PASSWORD` is set; the server also requires `X-Rosa-Hold: 3s`
+  (sent by the page after a 3 s button hold) and enforces
+  `COMMAND_COOLDOWN_SECONDS` inside `Collector._command_lock`. Commands go
+  through `remote._post_once()`, not pytoyoda's request path, because pytoyoda
+  retries 429/5xx and would repeat a command.
 - `app/maintenance.py` — `MaintenanceStore`, a JSON file in `DATA_DIR`
   (`maintenance.json`): Toyota service records merged by id (never deleted),
   user-logged tyre rotations, and the rotation interval. Distances are stored

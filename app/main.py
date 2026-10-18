@@ -128,6 +128,8 @@ class CommandRequest(BaseModel):
 async def command(body: CommandRequest, request: Request, x_rosa_hold: str | None = Header(default=None)) -> dict:
     if not collector.remote_enabled:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Remote control is turned off (REMOTE_CONTROL=true enables it)")
+    if not DASHBOARD_PASSWORD:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Set DASHBOARD_PASSWORD to use remote control")
     # The page only sends this after the button has been held for 3 seconds.
     if x_rosa_hold != "3s":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Hold the button to confirm")

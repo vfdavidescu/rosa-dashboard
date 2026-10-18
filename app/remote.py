@@ -73,19 +73,48 @@ def _describe_status(result: Any) -> str:
     return "accepted"
 
 
+async def _post_once(vehicle: Any, endpoint: str, body: dict) -> dict:
+    """POST exactly once. pytoyoda retries 429/5xx, which would repeat a command.
+
+    Uses pytoyoda 6.x internals (Controller), hence the version pin.
+    """
+    import httpx
+
+    ctl = vehicle._api.controller
+    if not ctl._is_token_valid():
+        await ctl._update_token()
+    if ctl._client is None:
+        ctl._client = httpx.AsyncClient(timeout=ctl._timeout, verify=await ctl._get_ssl_context())
+    resp = await ctl._client.request(
+        "POST", f"{ctl._api_base_url}{endpoint}",
+        headers=ctl._prepare_headers(vehicle.vin), json=body, follow_redirects=True,
+    )
+    if resp.status_code not in (200, 202):
+        raise RuntimeError(f"Toyota answered {resp.status_code}: {resp.text[:300]}")
+    return resp.json() if resp.content else {}
+
+
 async def execute(vehicle: Any, cmd: Command) -> tuple[bool, str]:
     """Send one command. Returns (accepted, message). Raises on transport errors."""
+    from pytoyoda.api import VEHICLE_CLIMATE_CONTROL_ENDPOINT, VEHICLE_COMMAND_ENDPOINT
+
     if cmd.kind == "climate":
-        from pytoyoda.models.endpoints.climate import V2RemoteClimateControlRequestModel
+        from pytoyoda.models.endpoints.climate import (
+            RemoteClimateControlResponseModel,
+            V2RemoteClimateControlRequestModel,
+        )
 
         # "start" with no settings uses the car's saved preset (temperature, duration).
-        resp = await vehicle.set_climate(V2RemoteClimateControlRequestModel(command=cmd.action))
+        body = V2RemoteClimateControlRequestModel(command=cmd.action).model_dump(exclude_none=True, by_alias=True)
+        resp = RemoteClimateControlResponseModel(**await _post_once(vehicle, VEHICLE_CLIMATE_CONTROL_ENDPOINT, body))
         code = str(getattr(getattr(resp, "payload", None), "return_code", "") or "")
         if code == "000000":
             return True, "accepted"
         return False, CLIMATE_CODES.get(code, f"rejected (code {code or 'unknown'})")
 
-    from pytoyoda.models.endpoints.command import CommandType
+    from pytoyoda.models.endpoints.command import CommandType, RemoteCommandModel
+    from pytoyoda.models.endpoints.common import StatusModel
 
-    result = await vehicle.post_command(CommandType(cmd.action))
+    body = RemoteCommandModel(beep_count=0, command=CommandType(cmd.action)).model_dump(exclude_unset=True, by_alias=True)
+    result = StatusModel(**await _post_once(vehicle, VEHICLE_COMMAND_ENDPOINT, body))
     return True, _describe_status(result)

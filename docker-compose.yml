@@ -7,6 +7,8 @@ services:
     environment:
       CAR_IMAGE_DIR: /images
       LOG_DIR: /logs
+      # "Today" for the service page; the container is UTC otherwise.
+      TZ: Europe/London
     ports:
       # LAN only by default. Don't port-forward this to the internet.
       - "8080:8080"

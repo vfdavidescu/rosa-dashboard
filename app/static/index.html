@@ -21,7 +21,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="static/app.css">
 </head>
 <body>
@@ -153,13 +154,14 @@
   <footer id="footer"></footer>
 </main>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="static/common.js"></script>
 <script>
 let state = null, period = "week", map = null, marker = null;
 
 /* ---------- status ---------- */
-const LOW_FUEL_PCT = 15;
+const LOW_FUEL_PCT = 10, MID_FUEL_PCT = 25;
 const PART_NAMES = { driver: "Driver door", passenger: "Passenger door", rear_left: "Rear left door",
                      rear_right: "Rear right door", boot: "Boot", bonnet: "Bonnet" };
 
@@ -237,7 +239,7 @@ function renderHero(v) {
   const pct = d.fuel_level;
   $("hs-fuel").textContent = pct == null ? "–" : `${pct}%`;
   $("hs-fuel").classList.remove("lvl-bad", "lvl-warn", "lvl-ok");
-  if (pct != null) $("hs-fuel").classList.add(pct < 10 ? "lvl-bad" : pct < 25 ? "lvl-warn" : "lvl-ok");
+  if (pct != null) $("hs-fuel").classList.add(pct < LOW_FUEL_PCT ? "lvl-bad" : pct < MID_FUEL_PCT ? "lvl-warn" : "lvl-ok");
 }
 
 function renderWarnings(d) {
@@ -288,7 +290,7 @@ function renderStats(v) {
   $("st-consumption").innerHTML = bigDual(s?.avg_consumption, "consumption", u, "v");
   $("st-duration").textContent = s ? fmt.dur(s.duration_min) : "–";
   $("st-score").textContent = s ? fmt.n(s.hybrid_score) : "–";
-  const ev = s && s.distance ? Math.round((s.ev_distance / s.distance) * 100) : null;
+  const ev = s && s.distance && s.ev_distance != null ? Math.round((s.ev_distance / s.distance) * 100) : null;
   $("evbar").style.width = `${ev ?? 0}%`;
   $("evlabel").textContent = ev == null ? "EV share –" : `${ev}% of distance driven on electric`;
 }
@@ -358,10 +360,12 @@ function renderRemote(v) {
         <code>REMOTE_CONTROL=true</code> to <code>.env</code> and restart. Rosa supports:
         ${cmds.map((c) => esc(c.label.toLowerCase())).join(", ")}.</p>`;
       setHint("");
+    } else if (!r.password_set) {
+      $("remote-body").innerHTML = `<p class="note warn" style="margin:0">Remote control needs a password. Set
+        <code>DASHBOARD_PASSWORD</code> in <code>.env</code> and restart.</p>`;
+      setHint("");
     } else {
-      const warn = r.password_set ? "" :
-        `<p class="note warn">Anyone on your network can use these. Set <code>DASHBOARD_PASSWORD</code> in <code>.env</code> to require a password.</p>`;
-      $("remote-body").innerHTML = warn + GROUPS.map(([g, title]) => {
+      $("remote-body").innerHTML = GROUPS.map(([g, title]) => {
         const list = cmds.filter((c) => c.group === g);
         if (!list.length) return "";
         return `<div class="rgroup"><div class="rgroup-label">${title}</div><div class="rbtns">` +
