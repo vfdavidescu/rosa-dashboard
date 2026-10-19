@@ -1,4 +1,4 @@
-# Rosa Dash
+# Rosa Dashboard
 
 > **Vibe-coded.** Built entirely with Claude out of frustration with the
 > official MyToyota app (re-prompts for your password on every launch, no
@@ -6,8 +6,8 @@
 > write it. Use at your own risk.
 
 A small self-hosted dashboard for a Toyota on the MyToyota (Europe) service.
-It logs in once, keeps the token, and polls in the background, so opening the
-page never asks for a password.
+It logs in once, polls Toyota in the background and keeps its own history, so
+opening the page is instant and never asks for a password.
 
 Built on [pytoyoda](https://github.com/pytoyoda/pytoyoda), the community
 library behind the Home Assistant Toyota integration. Unofficial: Toyota can
@@ -15,159 +15,98 @@ change their API at any time.
 
 ## What it shows
 
-- A picture of the car (Toyota's render, or your own photo, see `images/`)
-- Fuel level and estimated range
+### Dashboard (`/`)
+- Car picture (Toyota's render or your own photo in `images/`), odometer, fuel level and range
+- Any warning (open door, low fuel, warning light) as a message in the top card
 - Doors, windows, bonnet and boot (closed / locked)
-- Where the car was last parked (OpenStreetMap)
-- This week's and this month's distance, consumption, hybrid score, EV share
-- **Trips** page (`/trips`): every trip, paged, saved locally so history
-  outlives Toyota's 12 months. A map of every road driven; click a trip for its
-  route. Routes download gradually (one API call each) after the first start.
-- **Statistics** page (`/stats`): litres of petrol and distance per week or
-  month, with charts and a table of every period.
-- Odometer and fuel in the top card, which also shows any warning (open door, low fuel, warning light) as a message
-- **Remote control** (opt-in): lock/unlock, boot, hazards, horn, climate,
-  close windows, but only the ones your car reports it supports
-- **Service & Maintenance** page (`/service`): last and next service (the next is
-  worked out from an interval you can change), Toyota's service history saved
-  locally for good, plus tyre rotations you log yourself, with a "next due"
-  tracker
+- Where the car was last parked, on a map
+- This week's and this month's distance, consumption, hybrid score and EV share
+- Remote control (opt-in): lock/unlock, boot, hazards, horn, climate, close windows
 
-What's actually populated depends on the car and Toyota's backend; missing
-fields just show "–".
+### Trips (`/trips`)
+- Every trip, paged, saved locally so history outlives Toyota's 12 months
+- A map of every road driven; click a trip to see its own route
 
-## Run it
+### Statistics (`/stats`)
+- Litres of petrol and distance per week or month, with charts and a table
+
+### Service & Maintenance (`/service`)
+- Last and next service (next is worked out from an interval you can change)
+- Toyota's service history, kept for good
+- Tyre rotation history you add, edit and delete yourself; due after 5,000 miles or 6 months
+
+Every page has Refresh and Backup (one JSON file of everything stored) buttons.
+Missing data shows "–": what's available depends on your car and Toyota.
+
+## How to run it
 
 ```bash
 cp .env.example .env      # put your MyToyota email + password in here
 docker compose up -d --build
 ```
 
-Open http://localhost:8080 (or http://<server-ip>:8080 from your phone).
+Open http://localhost:8080 (or `http://<server-ip>:8080` from your phone). Change the
+port with `PORT` in `.env`.
 
-The first fetch happens on start-up and takes 10–20 seconds. The last good
-snapshot is saved in a volume, so restarts show data straight away.
+The first fetch takes 10–20 seconds; the last snapshot is kept in a volume, so
+restarts show data straight away. Logs go to `./logs`. Keep it on your LAN or behind a
+VPN; if you expose it, set `DASHBOARD_PASSWORD` and use HTTPS.
 
-### Without Docker
+Remote control is off by default. To enable it set `REMOTE_CONTROL=true` and a
+`DASHBOARD_PASSWORD` of 12+ characters; buttons must be held for 3 seconds.
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-set -a; source .env; set +a
-uvicorn app.main:app --port 8080
+## Behind the scenes
+
+The app talks to Toyota's MyToyota Europe servers through pytoyoda, with the
+account in `.env`.
+
+**How it uses pytoyoda.** One `MyT` client lives for the whole process. It logs in
+once (username + password, OAuth against Toyota's login service), caches the token
+and refreshes it when needed. Then each poll is roughly:
+
+```python
+await client.login()                       # no-op while the token is valid
+cars = await client.get_vehicles()         # vehicle list
+await car.update()                         # status, location, health, service history...
+await car.get_current_week_summary()       # week totals
+await car.get_current_month_summary()      # month totals
 ```
 
-### UI work without touching Toyota
+Trips are fetched separately (`/v1/trips`), because pytoyoda's built-in trip history
+is broken in 6.0.0.
 
-```bash
-MOCK=true uvicorn app.main:app --reload --port 8080
-```
+**Toyota endpoints.** All on `ctpa-oneapi.tceu-ctp-prd.toyotaconnectedeurope.io`,
+with the OAuth bearer token and the vehicle's VIN in the headers:
 
-## Remote control
+| Endpoint | Used for |
+| -------- | -------- |
+| `GET /v1/vehicle-association/vehicle` | Your vehicles (VIN, model, colour, picture, supported remote commands) |
+| `GET /v1/vehicle/status` | Doors, windows, bonnet and boot (open / locked) |
+| `GET /v3/telemetry` | Odometer, fuel level, range |
+| `GET /v1/vehiclehealth/status` | Warning lights |
+| `GET /v1/location` | Where the car was last parked |
+| `GET /v1/servicehistory/vehicle/summary` | Service records |
+| `GET /v1/trips?from&to&summary&limit&offset` | Trip list and week/month summaries |
+| `GET /v1/trips/{id}` | One trip's GPS route |
+| `POST /v1/global/remote/command` | Lock, unlock, boot, hazards, horn, close windows |
+| `POST /v2/remote/climate-control` | Climate start / stop |
 
-Off by default, because it can unlock the car. To turn it on, set
-`REMOTE_CONTROL=true` in `.env`, and set `DASHBOARD_PASSWORD` too.
+Login goes to `b2c-login.toyota-europe.com`. pytoyoda also reads electric, climate and
+notification endpoints during `update()`; this app doesn't show them.
 
-Safety measures:
+**Cadence.** Every `POLL_MINUTES` (default 30, minimum 10), or when you press Refresh.
+New trips are requested until a page contains one already stored; each new trip's route
+is then fetched with one request, in batches of 20.
 
-- Commands are refused unless `DASHBOARD_PASSWORD` is set and at least 12 characters.
-  Wrong passwords are handled one per second for everyone, so guessing is hopeless.
-- If Toyota doesn't answer cleanly, the page says the car *may* have done it
-  (shown as `?`) instead of failing, and the dashboard refreshes a minute later.
-- Each command is sent to Toyota exactly once (pytoyoda's retries are bypassed).
-- Each button has to be **held for 3 seconds**; letting go early sends nothing.
-- Only commands your car's own capability flags allow are shown or accepted.
-  Engine start, headlights, hazards-off and window-open are never sent.
-- One command per `COMMAND_COOLDOWN_SECONDS` (default 15), enforced on the server.
-- Write requests need an `X-Rosa` header, which other websites can't add, so a
-  malicious page can't trigger commands through your browser.
-- Every command is logged to `command-log.json` in the data volume (time,
-  command, result, IP).
+**Being polite.** Requests are sent one at a time with a gap between them, because
+Toyota answers bursts with HTTP 429. If Toyota fails or refuses, the last good data
+stays on screen. Trips and routes are stored locally, so only new ones are requested.
 
-About a minute after a command, the dashboard refreshes so you can see the result.
+**Sending commands.** Remote control posts to Toyota's command endpoint (and the
+climate endpoint for climate start/stop). Only a fixed list of commands is
+allowed, and only those your car reports as supported. Each is sent exactly once,
+with no automatic retry, so a flaky connection can't repeat it. If Toyota gives no
+clean answer the page says the car *may* have done it, and a refresh follows a
+minute later.
 
-## Service & Maintenance
-
-Stored in `maintenance.json` in the data volume:
-
-- **Service history**: every record Toyota has returned, merged on each refresh.
-  Records stay even if Toyota later drops them.
-- **Tyre rotations**: added, edited and deleted by you under Rotation history
-  (date, odometer, notes). A rotation is "Due" after 5,000 miles or 6 months,
-  whichever comes first. That rule is fixed.
-
-## Backup
-
-The download button in every page header saves `rosa-backup-<date>.json`: the
-latest snapshot, maintenance records, every trip and route, and the command log.
-No Toyota credentials are included.
-
-## Logs
-
-Written to `./logs` next to this README (and to `docker compose logs`):
-
-- `rosa.log`: the app (refreshes, commands and their results, errors)
-- `pytoyoda.log`: warnings and errors from the Toyota library
-
-Both rotate at 5 MB and keep 5 old files. `LOG_LEVEL` (default `INFO`) sets
-the app's detail. `TOYOTA_LOG_LEVEL` (default `WARNING`) sets pytoyoda's; at
-`DEBUG` it writes your password and tokens, so only use that briefly.
-
-## Phone
-
-In Safari, Share → Add to Home Screen. It opens full-screen like an app.
-
-## API
-
-| Method | Path           | What                                              |
-| ------ | -------------- | ------------------------------------------------- |
-| GET    | `/api/state`   | Latest snapshot as JSON                           |
-| GET    | `/api/car-image` | The car picture (your photo if present, else Toyota's) |
-| POST   | `/api/refresh` | Fetch now (rate-limited by `REFRESH_COOLDOWN_SECONDS`) |
-| POST   | `/api/command` | Remote command (needs `REMOTE_CONTROL=true`, `X-Rosa: 1` and `X-Rosa-Hold: 3s`) |
-| GET    | `/api/trips?page=&per_page=` | Stored trips, newest first |
-| GET    | `/api/trips/routes` | Every stored route, simplified |
-| GET    | `/api/stats?period=week\|month` | Petrol and distance totals per period |
-| GET    | `/api/trips/{id}/route` | One trip's full route |
-| GET    | `/api/backup` | Everything stored, as one JSON download |
-| GET    | `/api/maintenance` | Service history, tyre rotations, interval |
-| POST   | `/api/maintenance/tyre-rotations` | Add a rotation |
-| PUT    | `/api/maintenance/tyre-rotations/{id}` | Edit one |
-| DELETE | `/api/maintenance/tyre-rotations/{id}` | Remove one |
-| PUT    | `/api/maintenance/settings` | Service interval |
-| GET    | `/healthz`     | Liveness                                          |
-
-`/api/state` is handy for other things too (e.g. feeding odometer and fuel into
-another project). All POST/PUT/DELETE calls need an `X-Rosa: 1` header.
-
-## Being a good API citizen
-
-- Requests to Toyota are made one at a time with small gaps; bursts get HTTP 429.
-- Default poll is every 30 minutes, minimum 10.
-- Keep this on your LAN or behind Tailscale/WireGuard. If you do expose it,
-  set `DASHBOARD_PASSWORD` and put it behind HTTPS.
-
-## Contributing
-
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-(`feat:`, `fix:`, `docs:`, etc).
-
-## Layout
-
-```
-app/
-  main.py         FastAPI app, background poller, optional basic auth
-  collector.py    pytoyoda calls → one JSON snapshot
-  mock.py         sample data with the same shape
-  images.py       car picture: download/cache Toyota's, or use your own
-  remote.py       which remote commands exist, capability checks, sending
-  maintenance.py  maintenance.json: service history, tyre rotations
-  trips.py        trips.json + routes/: trip history and GPS routes
-  static/
-    index.html    dashboard page
-    trips.html    Trips page
-    stats.html    Statistics page
-    service.html  Service & Maintenance page
-    app.css       shared styles
-    common.js     shared JS: theme, formatting, units, API helper
-```
+Never sent: engine start, headlights, window-open.
