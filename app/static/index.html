@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusbar">
-<meta name="apple-mobile-web-app-title" content="Rosa">
-<title>Rosa Dash</title>
+<meta name="apple-mobile-web-app-title" content="Rosa Dashboard">
+<title>Rosa Dashboard</title>
 <script>
   // Apply the saved theme before first paint, so there's no flash.
   (function () {
@@ -31,7 +31,7 @@
     <div class="brand">
       <div class="dot"></div>
       <div>
-        <h1 id="name">Rosa</h1>
+        <h1 id="name">Rosa Dashboard</h1>
         <div class="sub" id="updated">Loading…</div>
       </div>
     </div>
@@ -144,7 +144,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="static/common.js?v=2"></script>
+<script src="static/common.js?v=3"></script>
 <script>
 let state = null, period = "week", map = null, marker = null, parkedAt = "";
 
@@ -442,7 +442,7 @@ function render() {
   $("info").classList.toggle("show", !!state?.mock);
   $("updated").textContent = updatedText(state);
   if (!v) return;
-  $("name").textContent = v.alias || "My Toyota";
+  showName(state);
   renderHero(v);
   renderRemote(v);
   renderLocks(v.locks || {});

@@ -146,6 +146,7 @@ function setupHeader(onFresh) {
       const merged = { ...(lastSeen.get("api/state") || {}), ...fresh };
       lastSeen.set("api/state", merged);
       $("updated").textContent = updatedText(merged);
+      showName(merged);
       setLabel("Refresh");
       onFresh?.(fresh);
     } catch (err) {
@@ -156,9 +157,23 @@ function setupHeader(onFresh) {
   });
 }
 
+// "<car name> Dashboard" in the heading, tab title and home-screen name.
+function showName(state) {
+  const alias = state?.vehicles?.[0]?.alias;
+  if (!alias) return;
+  const name = `${alias} Dashboard`;
+  $("name").textContent = name;
+  document.title = document.title.replace(/[^·]*$/, (document.title.includes("·") ? " " : "") + name);
+  document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
+}
+
 // For pages that don't load /api/state themselves.
 async function syncUpdated() {
   const cached = lastSeen.get("api/state");
-  if (cached) $("updated").textContent = updatedText(cached);
-  try { $("updated").textContent = updatedText(await api("api/state", { remember: true })); } catch (e) {}
+  if (cached) { $("updated").textContent = updatedText(cached); showName(cached); }
+  try {
+    const fresh = await api("api/state", { remember: true });
+    $("updated").textContent = updatedText(fresh);
+    showName(fresh);
+  } catch (e) {}
 }

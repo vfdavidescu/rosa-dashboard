@@ -7,8 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusbar">
-<meta name="apple-mobile-web-app-title" content="Rosa">
-<title>Service &amp; Maintenance · Rosa Dash</title>
+<meta name="apple-mobile-web-app-title" content="Rosa Dashboard">
+<title>Service &amp; Maintenance · Rosa Dashboard</title>
 <script>
   (function () {
     try {
@@ -28,7 +28,7 @@
     <div class="brand">
       <div class="dot"></div>
       <div>
-        <h1 id="name">Rosa</h1>
+        <h1 id="name">Rosa Dashboard</h1>
         <div class="sub" id="updated">Loading…</div>
       </div>
     </div>
@@ -132,7 +132,7 @@
   <footer id="footer"></footer>
 </main>
 
-<script src="static/common.js?v=2"></script>
+<script src="static/common.js?v=3"></script>
 <script>
 let data = null;
 
@@ -352,7 +352,6 @@ function renderServices() {
 }
 
 function render() {
-  if (data.alias) $("name").textContent = data.alias;
   $("info").textContent = data.mock ? "Mock mode: sample data. Anything you log here is saved to the mock data folder." : "";
   $("info").classList.toggle("show", !!data.mock);
   const u = data.units.distance;
