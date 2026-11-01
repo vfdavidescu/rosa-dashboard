@@ -15,6 +15,8 @@ change their API at any time.
 
 ## What it shows
 
+Screenshots use mock data (`MOCK=true`), not a real car.
+
 ### Dashboard (`/`)
 - Car picture (Toyota's render or your own photo in `images/`) and odometer
 - A fuel gauge like the car's own: percentage, litres left / tank size, and range
@@ -24,12 +26,20 @@ change their API at any time.
 - This week's and this month's distance, consumption, hybrid score and EV share
 - Remote control (opt-in): lock/unlock, boot, hazards, horn, climate, close windows
 
+![Dashboard](docs/screenshots/dashboard.png)
+
+<img src="docs/screenshots/dashboard-phone.png" alt="Dashboard on a phone" width="320">
+
 ### Trips (`/trips`)
 - Every trip, paged, saved locally so history outlives Toyota's 12 months
 - A map of every road driven; click a trip to see its own route
 
+![Trips](docs/screenshots/trips.png)
+
 ### Statistics (`/stats`)
 - Litres of petrol and distance per week or month, with charts and a table
+
+![Statistics](docs/screenshots/stats.png)
 
 ### Fuel (`/fuel`)
 - Fill-ups you log: litres, cost, odometer, and fuel type (regular E10 or premium E5)
@@ -37,10 +47,14 @@ change their API at any time.
 - Each fill-up is matched to the jump in fuel level it caused, which turns Toyota's
   percentage into exact litres for the gauge (`FUEL_TANK_LITRES` is used until then)
 
+![Fuel](docs/screenshots/fuel.png)
+
 ### Service & Maintenance (`/service`)
 - Last and next service (next is worked out from an interval you can change)
 - Toyota's service history, kept for good
 - Tyre rotation history you add, edit and delete yourself; due after 5,000 miles or 6 months
+
+![Service & Maintenance](docs/screenshots/service.png)
 
 Every page has Refresh and Backup (one JSON file of everything stored) buttons.
 Missing data shows "–": what's available depends on your car and Toyota.
