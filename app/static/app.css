@@ -88,12 +88,8 @@
   .alt { color: var(--faint); font-family: var(--mono); font-weight: 400; letter-spacing: 0; }
   .big + .alt, .v + .alt { display: block; font-size: 13px; margin-top: 6px; }
   td .alt { font-size: 12px; margin-left: 6px; }
-  .kv .alt { font-size: 12px; margin-left: 6px; }
   .sub .alt { font-size: 12px; margin-left: 6px; }
 
-  .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 8px 0; border-top: 1px solid var(--line); }
-  .kv span:first-child { color: var(--muted); }
-  .kv > span:last-child { font-family: var(--mono); text-align: right; }
 
   /* hero: car picture */
   .hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: 8px 28px; padding: 10px 28px 10px 10px; overflow: hidden; }
@@ -104,7 +100,6 @@
   .hero-img.photo { background: var(--line); }
   .hero-img.photo img { object-fit: cover; }
   .hero-model { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
-  .hero-desc { color: var(--muted); font-size: 14px; margin-top: 4px; }
   .hero.noimg { grid-template-columns: 1fr; padding: 18px; }
   .hero.noimg .hero-img { display: none; }
 

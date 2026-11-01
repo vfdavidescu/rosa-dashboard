@@ -43,6 +43,18 @@ class CommandCooldown(Exception):
         self.wait = wait
 
 
+def _tank_litres() -> float | None:
+    raw = os.environ.get("FUEL_TANK_LITRES", "").strip()
+    try:
+        litres = float(raw) if raw else None
+    except ValueError:
+        litres = None
+    if raw and not (litres and 5 <= litres <= 200):
+        log.warning("ignoring FUEL_TANK_LITRES=%r: expected litres, e.g. 43", raw)
+        return None
+    return litres
+
+
 def _get(fn: Callable[[], Any], default: Any = None) -> Any:
     try:
         value = fn()
@@ -227,15 +239,16 @@ class Collector:
         self.use_metric = os.environ.get("USE_METRIC", "false").lower() in ("1", "true", "yes")
         self.poll_minutes = max(10, int(os.environ.get("POLL_MINUTES", "30")))
         self.mock = os.environ.get("MOCK", "").lower() in ("1", "true", "yes")
-        self.data_file = Path(os.environ.get("DATA_DIR", "./data")) / "snapshot.json"
+        data_dir = Path(os.environ.get("DATA_DIR", "./data"))
+        # Mock data lives apart, so sample records never mix with the real history.
+        self.data_file = (data_dir / "mock" if self.mock else data_dir) / "snapshot.json"
         self.images = CarImage(
             data_dir=self.data_file.parent,
             custom_dir=Path(os.environ.get("CAR_IMAGE_DIR", "./images")),
         )
 
         self.maintenance = MaintenanceStore(self.data_file.parent / "maintenance.json")
-        tank = os.environ.get("FUEL_TANK_LITRES", "").strip()
-        self.fuel = FuelStore(self.data_file.parent / "fuel.json", float(tank) if tank else None)
+        self.fuel = FuelStore(self.data_file.parent / "fuel.json", _tank_litres())
         self.trips = TripStore(self.data_file.parent)
 
         # Remote control is opt-in: it can unlock the car.

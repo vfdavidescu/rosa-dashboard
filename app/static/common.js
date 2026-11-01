@@ -158,12 +158,13 @@ function setupHeader(onFresh) {
 }
 
 // "<car name> Dashboard" in the heading, tab title and home-screen name.
+const pageTitle = document.title.includes(" · ") ? document.title.split(" · ")[0] + " · " : "";
 function showName(state) {
   const alias = state?.vehicles?.[0]?.alias;
   if (!alias) return;
   const name = `${alias} Dashboard`;
   $("name").textContent = name;
-  document.title = document.title.replace(/[^·]*$/, (document.title.includes("·") ? " " : "") + name);
+  document.title = pageTitle + name;
   document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", name);
 }
 

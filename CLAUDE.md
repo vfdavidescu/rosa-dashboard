@@ -10,8 +10,8 @@ Home Assistant Toyota integration, unofficial — Toyota can change their API at
 time). It logs into MyToyota (Europe) once, polls in the background, and serves the
 last-known snapshot so the page never blocks on a live API call.
 
-**Start here:** read `docs/HANDOFF.md` for how the project got here, the open
-issue (a failed remote Unlock) and ideas not yet built.
+**Start here:** read `docs/HANDOFF.md` for how the project got here and ideas
+not yet built.
 
 ## Commands
 
@@ -108,7 +108,8 @@ There is no test suite, linter, or build step configured in this repo.
 - Other files written to `DATA_DIR` at runtime: `snapshot.json`,
   `maintenance.json`, `fuel.json`, `trips.json`, `routes/`, `command-log.json` (audit log of remote commands),
   `car-image.*`, and pytoyoda's HTTP cache in `.cache/` (the container's working
-  directory is `/data` for that reason).
+  directory is `/data` for that reason). With `MOCK=true` all of these go to
+  `DATA_DIR/mock/` instead, so sample data never mixes with the real history.
 
 ## Conventions specific to this repo
 

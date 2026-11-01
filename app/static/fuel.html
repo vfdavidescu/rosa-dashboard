@@ -99,7 +99,7 @@
   </section>
 </main>
 
-<script src="static/common.js?v=3"></script>
+<script src="static/common.js?v=4"></script>
 <script>
 /* ---------- fill-ups ---------- */
 let fuel = null, addingFill = false, editingFill = null, fillSig = "";
@@ -181,7 +181,8 @@ function bindFillForm(form) {
 
 function levelText(f) {
   if (!f.level_source) return "Fuel level not matched yet";
-  return `${fmt.n(f.pct_before)}% → ${fmt.n(f.pct_after)}%${f.level_source === "entered" ? " (entered)" : ""}`;
+  return `${fmt.n(f.pct_before)}% → ${fmt.n(f.pct_after)}%${f.level_source === "entered" ? " (entered)" : ""}` +
+    (f.calibration === "ignored" ? " · not used for the gauge: doesn't fit the tank size, check the litres" : "");
 }
 
 // Fill-ups grouped by calendar month, newest first.

@@ -3,7 +3,7 @@
 - services: every service record Toyota has ever returned, merged by id.
   Kept even if Toyota later drops one, so this is your permanent history.
 - tyre_rotations: entries you add yourself; Toyota knows nothing about them.
-- settings: the tyre-rotation interval used to work out when the next is due.
+- settings: the service interval used to work out when the next service is due.
 
 Distances are stored with their own unit ("mi"/"km") exactly as entered or
 as Toyota sent them, and converted only for display.

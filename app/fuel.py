@@ -23,6 +23,10 @@ MAX_READINGS = 20_000
 MIN_JUMP = 5          # % rise that counts as a refuel, above sensor noise
 MIN_CALIBRATION = 15  # % rise needed before a fill-up is used to calibrate
 MATCH_DAYS = 3        # how long after the fill-up date the car may report the new level
+# A fill-up whose litres and % rise imply a tank outside this range is a typo or a bad
+# match; it's left out of the calibration (as a share of FUEL_TANK_LITRES, or in litres).
+TANK_TOLERANCE = (0.6, 1.5)
+TANK_RANGE = (20, 120)
 
 
 def _now() -> str:
@@ -136,16 +140,32 @@ class FuelStore:
             out.append(item)
         return out
 
+    def _plausible(self, tank: float) -> bool:
+        if self.tank_litres:
+            lo, hi = TANK_TOLERANCE
+            return lo * self.tank_litres <= tank <= hi * self.tank_litres
+        return TANK_RANGE[0] <= tank <= TANK_RANGE[1]
+
     def calibration(self, fillups: list[dict] | None = None) -> dict:
-        """Litres per 1% of the gauge: from fill-ups if possible, else the tank size."""
+        """Litres per 1% of the gauge: from fill-ups if possible, else the tank size.
+
+        Marks each fill-up with "calibration": "used", "ignored" (implausible) or None.
+        """
         fillups = self._matched() if fillups is None else fillups
         litres = rise = 0.0
         used = 0
         for f in fillups:
-            if f["level_source"] and f["pct_after"] - f["pct_before"] >= MIN_CALIBRATION:
-                litres += f["litres"]
-                rise += f["pct_after"] - f["pct_before"]
-                used += 1
+            f["calibration"] = None
+            if not f["level_source"] or f["pct_after"] - f["pct_before"] < MIN_CALIBRATION:
+                continue
+            step = f["pct_after"] - f["pct_before"]
+            if not self._plausible(f["litres"] / step * 100):
+                f["calibration"] = "ignored"
+                continue
+            f["calibration"] = "used"
+            litres += f["litres"]
+            rise += step
+            used += 1
         if used:
             per_pct = litres / rise
             return {"litres_per_pct": per_pct, "tank_litres": per_pct * 100, "calibrated": True, "fillups_used": used}

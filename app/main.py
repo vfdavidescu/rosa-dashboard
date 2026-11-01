@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
+import re
 import secrets
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -27,7 +27,8 @@ logsetup.setup()
 MANUAL_REFRESH_COOLDOWN_S = int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "300"))
 COMMAND_COOLDOWN_S = int(os.environ.get("COMMAND_COOLDOWN_SECONDS", "15"))
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
-CURRENCY = os.environ.get("CURRENCY", "GBP").strip().upper() or "GBP"
+CURRENCY = os.environ.get("CURRENCY", "").strip().upper()
+CURRENCY = CURRENCY if re.fullmatch(r"[A-Z]{3}", CURRENCY) else "GBP"  # ISO code, or the page can't format it
 MIN_REMOTE_PASSWORD = 12  # remote control is refused below this length
 PASSWORD_OK = len(DASHBOARD_PASSWORD) >= MIN_REMOTE_PASSWORD
 STATIC = Path(__file__).parent / "static"
