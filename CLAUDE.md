@@ -37,8 +37,8 @@ There is no test suite, linter, or build step configured in this repo.
 - `app/main.py` — FastAPI app. Defines the lifespan hook that starts
   `Collector.run_forever()` as a background task on startup, optional HTTP Basic
   auth (`guard`, only enforced when `DASHBOARD_PASSWORD` is set), the pages
-  (`/`, `/service`, `/static/*`) and the JSON API: `/api/state`, `/api/car-image`,
-  `POST /api/refresh`, `POST /api/command`, `/api/trips*`, `/api/stats`, `/api/backup` and `/api/maintenance/*`.
+  (`/`, `/trips`, `/stats`, `/fuel`, `/service`, `/static/*`) and the JSON API: `/api/state`, `/api/car-image`,
+  `POST /api/refresh`, `POST /api/command`, `/api/trips*`, `/api/stats`, `/api/backup`, `/api/fuel*` and `/api/maintenance/*`.
   A middleware sets `Cache-Control: no-cache` on everything that doesn't set its
   own, so browsers never pair a new page with a stale `common.js`.
   **Every POST/PUT/DELETE must depend on `same_site_write`** (requires an
@@ -68,6 +68,12 @@ There is no test suite, linter, or build step configured in this repo.
   missing routes in batches of 20, holding the refresh lock so calls never overlap.
   The all-roads map uses RDP-simplified routes, cached in memory. `stats()`
   totals trips per week/month for the Statistics page (litres = km × L/100km ÷ 100).
+- `app/fuel.py` — `FuelStore`, `DATA_DIR/fuel.json`: fill-ups you log (add/edit/delete)
+  and `readings`, the fuel % after each refresh (only when it changes). Toyota reports
+  fuel only as a whole %, so each fill-up is matched to the % jump it caused (or the
+  before/after % typed in) and `calibration()` gives litres per 1% from them, falling
+  back to `FUEL_TANK_LITRES / 100`. `/api/state` carries it as `fuel` for the gauge;
+  the fill-up log and spend are on the Fuel page (`fuel.html`, `/api/fuel*`).
 - `app/images.py` — the car picture: user photo in `CAR_IMAGE_DIR` wins,
   otherwise Toyota's render downloaded once into `DATA_DIR`.
 - `app/collector.py` — all Toyota I/O and the one `Collector` class that owns the
@@ -94,13 +100,13 @@ There is no test suite, linter, or build step configured in this repo.
 - `app/static/` — the frontend, vanilla JS, no build step: `index.html`
   (dashboard + remote control, polls `/api/state`), `trips.html` (all trips,
   paged, with route maps), `stats.html` (weekly/monthly petrol and distance,
-  hand-built SVG charts), `service.html` (Service & Maintenance), `app.css` (shared styles, light/dark tokens) and `common.js`
+  hand-built SVG charts), `fuel.html` (fill-ups and fuel spend), `service.html` (Service & Maintenance), `app.css` (shared styles, light/dark tokens) and `common.js`
   (theme toggle, formatting, unit conversion, `api()` helper that adds `X-Rosa`,
   `lastSeen` per-tab cache for instant page switches, and `setupHeader()` /
   `syncUpdated()` for the Backup + Refresh buttons and "Updated … ago" line that
   every page header shares).
 - Other files written to `DATA_DIR` at runtime: `snapshot.json`,
-  `maintenance.json`, `trips.json`, `routes/`, `command-log.json` (audit log of remote commands),
+  `maintenance.json`, `fuel.json`, `trips.json`, `routes/`, `command-log.json` (audit log of remote commands),
   `car-image.*`, and pytoyoda's HTTP cache in `.cache/` (the container's working
   directory is `/data` for that reason).
 

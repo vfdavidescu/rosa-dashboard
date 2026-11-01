@@ -27,6 +27,7 @@ logsetup.setup()
 MANUAL_REFRESH_COOLDOWN_S = int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "300"))
 COMMAND_COOLDOWN_S = int(os.environ.get("COMMAND_COOLDOWN_SECONDS", "15"))
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+CURRENCY = os.environ.get("CURRENCY", "GBP").strip().upper() or "GBP"
 MIN_REMOTE_PASSWORD = 12  # remote control is refused below this length
 PASSWORD_OK = len(DASHBOARD_PASSWORD) >= MIN_REMOTE_PASSWORD
 STATIC = Path(__file__).parent / "static"
@@ -114,6 +115,11 @@ async def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/fuel", dependencies=[Depends(guard)])
+async def fuel_page() -> FileResponse:
+    return FileResponse(STATIC / "fuel.html")
+
+
 @app.get("/service", dependencies=[Depends(guard)])
 async def service_page() -> FileResponse:
     return FileResponse(STATIC / "service.html")
@@ -141,6 +147,8 @@ async def state() -> dict:
         "car_image_custom": collector.images.is_custom(),
         # Toyota calls every Corolla estate/hatch "Corolla HB/TS"; let the owner say which.
         "car_model_name": os.environ.get("CAR_MODEL_NAME", "").strip() or None,
+        # Litres per 1% of the fuel gauge (Toyota only reports the percentage).
+        "fuel": collector.fuel.calibration(),
         "remote": {
             "enabled": collector.remote_enabled,
             "password_set": bool(DASHBOARD_PASSWORD),
@@ -313,6 +321,61 @@ class SettingsRequest(BaseModel):
 @app.put("/api/maintenance/settings", dependencies=[Depends(guard), Depends(same_site_write)])
 async def update_settings(body: SettingsRequest) -> dict:
     return collector.maintenance.update_settings(**body.model_dump())
+
+
+# -- fuel ---------------------------------------------------------------------------------------
+@app.get("/api/fuel", dependencies=[Depends(guard)])
+async def fuel() -> dict:
+    return {
+        **collector.fuel.view(),
+        "odometer": _current_odometer(),
+        "currency": CURRENCY,
+        "mock": collector.mock,
+    }
+
+
+class FillupRequest(BaseModel):
+    date: date
+    litres: float = Field(gt=0, le=500)
+    cost: float | None = Field(default=None, ge=0, le=10_000)
+    odometer: float | None = Field(default=None, ge=0, le=2_000_000)
+    unit: str = Field(pattern="^(mi|km)$")
+    fuel_type: str | None = Field(default=None, pattern="^(E10|E5)$")
+    # Optional: the fuel level before/after, if the detected one is wrong or missing.
+    pct_before: float | None = Field(default=None, ge=0, le=100)
+    pct_after: float | None = Field(default=None, ge=0, le=100)
+    notes: str = Field(default="", max_length=500)
+
+    def fields(self) -> dict:
+        if self.date > date.today():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "That date is in the future")
+        if (self.pct_before is None) != (self.pct_after is None):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Give the fuel level both before and after, or neither")
+        if self.pct_before is not None and self.pct_after <= self.pct_before:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "The level after must be higher than before")
+        out = self.model_dump()
+        out["on"] = out.pop("date")
+        return out
+
+
+@app.post("/api/fuel/fillups", dependencies=[Depends(guard), Depends(same_site_write)])
+async def add_fillup(body: FillupRequest) -> dict:
+    return collector.fuel.add_fillup(**body.fields())
+
+
+@app.put("/api/fuel/fillups/{fid}", dependencies=[Depends(guard), Depends(same_site_write)])
+async def edit_fillup(fid: str, body: FillupRequest) -> dict:
+    entry = collector.fuel.update_fillup(fid, **body.fields())
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such entry")
+    return entry
+
+
+@app.delete("/api/fuel/fillups/{fid}", dependencies=[Depends(guard), Depends(same_site_write)])
+async def delete_fillup(fid: str) -> dict:
+    if not collector.fuel.delete_fillup(fid):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such entry")
+    return {"ok": True}
 
 
 @app.get("/healthz")

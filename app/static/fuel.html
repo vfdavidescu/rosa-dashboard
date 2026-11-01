@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1ee" id="themecolor">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default" id="statusbar">
+<meta name="apple-mobile-web-app-title" content="Rosa Dashboard">
+<title>Fuel · Rosa Dashboard</title>
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("rosa-theme");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="static/app.css?v=4">
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1 id="name">Rosa Dashboard</h1>
+        <div class="sub" id="updated">Loading…</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="theme" class="icon-btn" type="button" aria-label="Switch light/dark mode" title="Switch light/dark mode">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+      </button>
+      <button id="backup" class="icon-btn" type="button" aria-label="Download a backup of all saved data" title="Download backup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19h14"/>
+        </svg>
+      </button>
+      <button id="refresh" type="button" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>
+        </svg>
+        <span class="refresh-label">Refresh</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Pages">
+    <a href="./">Dashboard</a>
+    <a href="trips">Trips</a>
+    <a href="stats"><span class="long">Statistics</span><span class="short">Stats</span></a>
+    <a href="fuel" aria-current="page">Fuel</a>
+    <a href="service"><span class="long">Service &amp; Maintenance</span><span class="short">Service</span></a>
+  </nav>
+
+  <div class="banner err" id="error"></div>
+  <div class="banner info" id="info"></div>
+
+  <section class="grid">
+    <article class="card span-12">
+      <h2>Fuel spend</h2>
+      <div class="kpis">
+        <div class="kpi"><div class="l">This month</div><div class="v" id="sp-month">–</div></div>
+        <div class="kpi"><div class="l">This year</div><div class="v" id="sp-year">–</div></div>
+        <div class="kpi"><div class="l">Last price</div><div class="v" id="sp-price">–</div></div>
+      </div>
+    </article>
+
+    <article class="card span-12">
+      <div class="maphead">
+        <h2 style="margin:0">Fill-ups</h2>
+        <button type="button" class="row-btn" id="fill-add">Log fill-up</button>
+      </div>
+      <div class="add-box" id="fill-add-box" hidden></div>
+      <ul class="list" id="fillups"></ul>
+      <p class="note" style="margin:14px 0 0" id="fill-note"></p>
+    </article>
+
+    <article class="card span-12">
+      <h2>Every month</h2>
+      <table>
+        <thead><tr>
+          <th>Month</th><th class="num">Litres</th><th class="num">Spent</th>
+          <th class="num">Avg price</th><th class="num">Fill-ups</th><th class="num">Premium</th>
+        </tr></thead>
+        <tbody id="months"></tbody>
+      </table>
+    </article>
+  </section>
+</main>
+
+<script src="static/common.js?v=3"></script>
+<script>
+/* ---------- fill-ups ---------- */
+let fuel = null, addingFill = false, editingFill = null, fillSig = "";
+const FUEL_TYPES = { E10: "Regular 95 (E10)", E5: "Premium 97–99 (E5)" };
+const money = (v, d = 2) => v == null ? "–" : Number(v).toLocaleString("en-GB",
+  { style: "currency", currency: fuel?.currency || "GBP", minimumFractionDigits: d, maximumFractionDigits: d });
+
+function fillForm(f, id) {
+  const opt = (v) => `<option value="${v}"${f.unit === v ? " selected" : ""}>${v}</option>`;
+  const val = (v) => esc(v ?? "");
+  const entered = f.level_source === "entered";
+  return `<form class="form fill-form"${id ? ` data-id="${esc(id)}"` : ""}>
+    <label class="f">Date
+      <input type="date" name="date" required max="${esc(fuel.today)}" value="${val(f.date)}">
+    </label>
+    <label class="f">Litres
+      <input type="number" name="litres" min="0.01" max="500" step="0.01" inputmode="decimal" required value="${val(f.litres)}">
+    </label>
+    <label class="f">Total cost <span style="font-weight:400">(optional)</span>
+      <input type="number" name="cost" min="0" step="0.01" inputmode="decimal" value="${val(f.cost)}">
+    </label>
+    <label class="f">Odometer <span style="font-weight:400">(optional)</span>
+      <input type="number" name="odometer" min="0" step="1" inputmode="numeric" value="${val(f.odometer)}">
+    </label>
+    <label class="f">Unit
+      <select name="unit">${opt("mi")}${opt("km")}</select>
+    </label>
+    <label class="f wide-sm">Fuel type
+      <select name="fuel_type">${Object.entries(FUEL_TYPES).map(([v, t]) =>
+        `<option value="${v}"${(f.fuel_type || "E10") === v ? " selected" : ""}>${t}</option>`).join("")}</select>
+    </label>
+    <label class="f wide">Notes <span style="font-weight:400">(optional)</span>
+      <input type="text" name="notes" maxlength="500" placeholder="e.g. Tesco, E10" value="${val(f.notes)}">
+    </label>
+    <details class="sec wide"${entered ? " open" : ""}>
+      <summary>Fuel level before and after · only if the detected one is wrong or missing</summary>
+      <div class="form">
+        <label class="f">Before (%)
+          <input type="number" name="pct_before" min="0" max="100" step="1" inputmode="numeric" value="${entered ? val(f.pct_before) : ""}">
+        </label>
+        <label class="f">After (%)
+          <input type="number" name="pct_after" min="0" max="100" step="1" inputmode="numeric" value="${entered ? val(f.pct_after) : ""}">
+        </label>
+      </div>
+    </details>
+    <div class="btn-row wide">
+      <button type="submit" class="btn-primary">${id ? "Save changes" : "Log fill-up"}</button>
+      <button type="button" class="cancel">Cancel</button>
+      <span class="form-msg"></span>
+    </div>
+  </form>`;
+}
+
+function bindFillForm(form) {
+  const id = form.dataset.id || null;
+  const msg = form.querySelector(".form-msg");
+  form.querySelector(".cancel").addEventListener("click", () => {
+    addingFill = false; editingFill = null; fillSig = "";
+    renderFuel();
+  });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.className = "form-msg"; msg.textContent = "Saving…";
+    const f = new FormData(form);
+    const num = (k) => (f.get(k) === "" ? null : Number(f.get(k)));
+    try {
+      await api(id ? `api/fuel/fillups/${encodeURIComponent(id)}` : "api/fuel/fillups", {
+        method: id ? "PUT" : "POST",
+        body: { date: f.get("date"), litres: num("litres"), cost: num("cost"), odometer: num("odometer"),
+                unit: f.get("unit"), fuel_type: f.get("fuel_type"), pct_before: num("pct_before"), pct_after: num("pct_after"), notes: f.get("notes") },
+      });
+      addingFill = false; editingFill = null; fillSig = "";
+      await loadFuel();
+    } catch (err) {
+      msg.className = "form-msg bad"; msg.textContent = err.message;
+    }
+  });
+}
+
+function levelText(f) {
+  if (!f.level_source) return "Fuel level not matched yet";
+  return `${fmt.n(f.pct_before)}% → ${fmt.n(f.pct_after)}%${f.level_source === "entered" ? " (entered)" : ""}`;
+}
+
+// Fill-ups grouped by calendar month, newest first.
+function renderMonths() {
+  const months = new Map();
+  for (const f of fuel.fillups) {
+    const k = f.date.slice(0, 7);
+    const m = months.get(k) || { n: 0, litres: 0, cost: 0, pricedLitres: 0, premium: 0 };
+    m.n++; m.litres += f.litres;
+    if (f.cost) { m.cost += f.cost; m.pricedLitres += f.litres; }
+    if (f.fuel_type === "E5") m.premium++;
+    months.set(k, m);
+  }
+  $("months").innerHTML = [...months].map(([k, m]) => `<tr>
+      <td class="m-when">${new Date(k + "-15T12:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</td>
+      <td class="num" data-label="Litres">${fmt.n(m.litres, 1)} L</td>
+      <td class="num" data-label="Spent">${money(m.cost)}</td>
+      <td class="num" data-label="Avg price">${m.pricedLitres ? money(m.cost / m.pricedLitres, 3) + "/L" : "–"}</td>
+      <td class="num" data-label="Fill-ups">${m.n}</td>
+      <td class="num" data-label="Premium">${m.premium}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="empty">No fill-ups logged yet.</td></tr>`;
+}
+
+function renderFuel() {
+  const sp = fuel.spend, cal = fuel.calibration;
+  $("info").textContent = fuel.mock ? "Mock mode: anything you log here is saved to the mock data folder." : "";
+  $("info").classList.toggle("show", !!fuel.mock);
+  renderMonths();
+  $("sp-month").textContent = money(sp.month);
+  $("sp-year").textContent = money(sp.year);
+  $("sp-price").innerHTML = sp.last_price_per_litre == null ? "–"
+    : `${money(sp.last_price_per_litre, 3)}<span class="unit">/L</span>`;
+  $("fill-note").textContent = cal.calibrated
+    ? `Fuel gauge: ${fmt.n(cal.litres_per_pct, 2)} L per 1%, so about ${fmt.n(cal.tank_litres, 1)} L from empty to full, worked out from ${cal.fillups_used} fill-up${cal.fillups_used === 1 ? "" : "s"}.`
+    : `Log fill-ups to make the dashboard's litres exact: each one is matched to the jump in fuel level it caused${cal.tank_litres ? `. Until then the gauge assumes a ${fmt.n(cal.tank_litres)} L tank` : ""}.`;
+
+  // Don't rebuild while a form is open and nothing changed: a background reload must not wipe what you're typing.
+  const sig = JSON.stringify(fuel.fillups);
+  if ((addingFill || editingFill) && sig === fillSig) return;
+  fillSig = sig;
+
+  const u = fuel.odometer?.unit || "mi";
+  const box = $("fill-add-box");
+  box.hidden = !addingFill;
+  box.innerHTML = addingFill
+    ? fillForm({ date: fuel.today, odometer: fuel.odometer ? Math.round(fuel.odometer.value) : "", unit: u }, null)
+    : "";
+  $("fill-add").hidden = addingFill;
+
+  const items = fuel.fillups.map((f) => {
+    if (f.id === editingFill) return `<li class="editing">${fillForm(f, f.id)}</li>`;
+    const ppl = f.cost && f.litres ? ` · ${money(f.cost / f.litres, 3)}/L` : "";
+    const odo = f.odometer != null ? inlineDual(convertDistance(f.odometer, f.unit, u), "distance", { distance: u }) : "";
+    return `<li>
+      <div><div class="t">${fmt.date(f.date)} · ${fmt.n(f.litres, 2)} L${f.cost != null ? ` · ${money(f.cost)}` : ""}${
+          f.fuel_type ? ` <span class="chip${f.fuel_type === "E5" ? " premium" : " plain"}">${f.fuel_type === "E5" ? "Premium E5" : "E10"}</span>` : ""}</div>
+        <div class="m">${esc(levelText(f))}${ppl}${f.notes ? " · " + esc(f.notes) : ""}</div></div>
+      <div class="r">${odo}
+        <div class="row-actions">
+          <button type="button" class="row-btn edit" data-id="${esc(f.id)}">Edit</button>
+          <button type="button" class="row-btn del" data-id="${esc(f.id)}" data-date="${esc(f.date)}">Delete</button>
+        </div></div>
+    </li>`;
+  });
+  $("fillups").innerHTML = items.join("") || `<li><span class="empty">No fill-ups logged yet.</span></li>`;
+
+  document.querySelectorAll(".fill-form").forEach(bindFillForm);
+  $("fillups").querySelectorAll(".edit").forEach((b) => b.addEventListener("click", () => {
+    editingFill = b.dataset.id; addingFill = false; fillSig = "";
+    renderFuel();
+    document.querySelector(".fill-form input")?.focus();
+  }));
+  $("fillups").querySelectorAll(".del").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm(`Delete the fill-up from ${fmt.date(b.dataset.date)}?`)) return;
+    b.disabled = true;
+    try { await api(`api/fuel/fillups/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); await loadFuel(); }
+    catch (err) { alert(err.message); b.disabled = false; }
+  }));
+}
+
+async function loadFuel() {
+  try {
+    fuel = await api("api/fuel", { remember: true });
+    renderFuel();
+  } catch (err) {
+    $("error").textContent = `Couldn't load fill-ups: ${err.message}`;
+    $("error").classList.add("show");
+  }
+}
+
+$("fill-add").addEventListener("click", () => {
+  addingFill = true; editingFill = null; fillSig = "";
+  renderFuel();
+  document.querySelector("#fill-add-box input")?.focus();
+});
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { loadFuel(); syncUpdated(); } });
+fuel = lastSeen.get("api/fuel");
+if (fuel) renderFuel();
+loadFuel();
+syncUpdated();
+setInterval(syncUpdated, 60_000);
+setupHeader(() => loadFuel());
+</script>
+</body>
+</html>

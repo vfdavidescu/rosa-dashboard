@@ -23,7 +23,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="static/app.css?v=2">
+<link rel="stylesheet" href="static/app.css?v=4">
 </head>
 <body>
 <main>
@@ -62,6 +62,7 @@
     <a href="./" aria-current="page">Dashboard</a>
     <a href="trips">Trips</a>
     <a href="stats"><span class="long">Statistics</span><span class="short">Stats</span></a>
+    <a href="fuel">Fuel</a>
     <a href="service"><span class="long">Service &amp; Maintenance</span><span class="short">Service</span></a>
   </nav>
 
@@ -77,8 +78,17 @@
         <div id="status"></div>
         <div class="hero-stats">
           <div><div id="hs-odo"><div class="v">–</div></div><div class="l">odometer</div></div>
-          <div><div class="v" id="hs-fuel">–</div><div class="l">fuel left</div></div>
-          <div><div id="hs-range"><div class="v">–</div></div><div class="l">range</div></div>
+          <div class="fuel">
+            <div class="fuel-top">
+              <span class="v" id="fg-pct">–</span>
+              <span class="fuel-litres" id="fg-litres"></span>
+              <span class="fuel-range" id="fg-range"></span>
+            </div>
+            <div class="gauge" role="meter" aria-label="Fuel left" aria-valuemin="0" aria-valuemax="100" id="fg-meter">
+              <div id="fg-fill"></div><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i>
+            </div>
+            <div class="gauge-scale"><span>E</span><span>¼</span><span>½</span><span>¾</span><span>F</span></div>
+          </div>
         </div>
       </div>
     </article>
@@ -220,9 +230,27 @@ function renderHero(v) {
 
   const d = v.dashboard || {};
   $("hs-odo").innerHTML = bigDual(d.odometer, "distance", v.units, "v");
-  $("hs-range").innerHTML = bigDual(d.total_range ?? d.fuel_range, "distance", v.units, "v");
+  renderFuel(d, v.units);
+}
 
-  $("hs-fuel").textContent = d.fuel_level == null ? "–" : `${d.fuel_level}%`;
+// Fuel gauge: Toyota only sends a percentage; litres come from the fill-up calibration (or the tank size).
+function renderFuel(d, units) {
+  const pct = d.fuel_level;
+  $("fg-pct").textContent = pct == null ? "–" : `${pct}%`;
+  $("fg-fill").style.width = `${Math.max(0, Math.min(100, pct ?? 0))}%`;
+  $("fg-meter").setAttribute("aria-valuenow", pct ?? 0);
+
+  const cal = state?.fuel || {};
+  const el = $("fg-litres");
+  if (pct != null && cal.litres_per_pct) {
+    el.textContent = `${cal.calibrated ? "" : "~"}${fmt.n(pct * cal.litres_per_pct)} / ${fmt.n(cal.tank_litres)} L`;
+    el.title = cal.calibrated
+      ? `From ${cal.fillups_used} logged fill-up${cal.fillups_used === 1 ? "" : "s"}`
+      : "Estimate from the tank size; log fill-ups on the Fuel page to make it exact";
+  } else {
+    el.textContent = ""; el.title = "";
+  }
+  $("fg-range").innerHTML = inlineDual(d.total_range ?? d.fuel_range, "distance", units);
 }
 
 function renderLocks(locks) {

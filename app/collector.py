@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app import remote
+from app.fuel import FuelStore
 from app.images import CarImage
 from app.maintenance import MaintenanceStore
 from app.trips import TripStore
@@ -233,6 +234,8 @@ class Collector:
         )
 
         self.maintenance = MaintenanceStore(self.data_file.parent / "maintenance.json")
+        tank = os.environ.get("FUEL_TANK_LITRES", "").strip()
+        self.fuel = FuelStore(self.data_file.parent / "fuel.json", float(tank) if tank else None)
         self.trips = TripStore(self.data_file.parent)
 
         # Remote control is opt-in: it can unlock the car.
@@ -316,6 +319,8 @@ class Collector:
                     "stale": False,
                 }
                 self._save()
+                if vehicles:
+                    self.fuel.record(self.snapshot["fetched_at"], (vehicles[0].get("dashboard") or {}).get("fuel_level"))
                 log.info("refreshed %d vehicle(s)", len(vehicles))
             except Exception as exc:  # noqa: BLE001
                 log.exception("refresh failed")
@@ -390,6 +395,7 @@ class Collector:
             "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "snapshot": self.snapshot,
             "maintenance": self.maintenance.data,
+            "fuel": self.fuel.data,
             "trips": {i: self.trips.trips[i] for i in trip_ids},
             "routes": {i: r for i in trip_ids if (r := self.trips.route(i))},
             "command_log": command_log,

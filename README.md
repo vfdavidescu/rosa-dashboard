@@ -16,7 +16,8 @@ change their API at any time.
 ## What it shows
 
 ### Dashboard (`/`)
-- Car picture (Toyota's render or your own photo in `images/`), odometer, fuel level and range
+- Car picture (Toyota's render or your own photo in `images/`) and odometer
+- A fuel gauge like the car's own: percentage, litres left / tank size, and range
 - Any warning (open door, low fuel, warning light) as a message in the top card
 - Doors, windows, bonnet and boot (closed / locked)
 - Where the car was last parked, on a map
@@ -29,6 +30,12 @@ change their API at any time.
 
 ### Statistics (`/stats`)
 - Litres of petrol and distance per week or month, with charts and a table
+
+### Fuel (`/fuel`)
+- Fill-ups you log: litres, cost, odometer, and fuel type (regular E10 or premium E5)
+- Spend this month and this year, last price per litre, and a month-by-month table
+- Each fill-up is matched to the jump in fuel level it caused, which turns Toyota's
+  percentage into exact litres for the gauge (`FUEL_TANK_LITRES` is used until then)
 
 ### Service & Maintenance (`/service`)
 - Last and next service (next is worked out from an interval you can change)
