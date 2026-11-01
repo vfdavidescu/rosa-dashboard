@@ -23,7 +23,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="static/app.css?v=4">
+<link rel="stylesheet" href="static/app.css?v=5">
 </head>
 <body>
 <main>
@@ -77,12 +77,15 @@
         <div class="hero-model" id="model"></div>
         <div id="status"></div>
         <div class="hero-stats">
-          <div><div id="hs-odo"><div class="v">–</div></div><div class="l">odometer</div></div>
-          <div class="fuel">
+          <div class="tile odo">
+            <div class="tile-l">Odometer</div>
+            <div id="hs-odo"><div class="v">–</div></div>
+          </div>
+          <div class="tile fuel">
+            <div class="tile-head"><span class="tile-l">Fuel</span><span class="fuel-range" id="fg-range"></span></div>
             <div class="fuel-top">
               <span class="v" id="fg-pct">–</span>
               <span class="fuel-litres" id="fg-litres"></span>
-              <span class="fuel-range" id="fg-range"></span>
             </div>
             <div class="gauge" role="meter" aria-label="Fuel left" aria-valuemin="0" aria-valuemax="100" id="fg-meter">
               <div id="fg-fill"></div><i style="left:25%"></i><i style="left:50%"></i><i style="left:75%"></i>
